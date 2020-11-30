@@ -59,61 +59,61 @@
 #define DB_CO(g) ((g) > -90.0f ? powf(10.0f, (g) * 0.05f) : 0.0f)
 
 enum {
-	CABSIM_CONTROL = 0,
-	CABSIM_NOTIFY  = 1,
+    CABSIM_CONTROL = 0,
+    CABSIM_NOTIFY  = 1,
     CABSIM_IN      = 2,
-	CABSIM_OUT     = 3,
-    ATTENUATE       = 4
+    CABSIM_OUT     = 3,
+    ATTENUATE      = 4
 };
 
 //static const char* default_sample_file = "Orange_PPC412_V30_412_C_Hi-Gn_121+57_Celestion.wav";
 
 typedef struct {
-	SF_INFO  info;      // Info about sample from sndfile
-	float*   data;      // Sample data in float
-	char*    path;      // Path of file
-	uint32_t path_len;  // Length of path
+    SF_INFO  info;      // Info about sample from sndfile
+    float*   data;      // Sample data in float
+    char*    path;      // Path of file
+    uint32_t path_len;  // Length of path
 } Sample;
 
 typedef struct {
-	// Features
-	LV2_URID_Map*        map;
-	LV2_Worker_Schedule* schedule;
-	LV2_Log_Log*         log;
+    // Features
+    LV2_URID_Map*        map;
+    LV2_Worker_Schedule* schedule;
+    LV2_Log_Log*         log;
 
-	// Forge for creating atoms
-	LV2_Atom_Forge forge;
+    // Forge for creating atoms
+    LV2_Atom_Forge forge;
 
-	// Logger convenience API
-	LV2_Log_Logger logger;
+    // Logger convenience API
+    LV2_Log_Logger logger;
 
-	// Sample
-	Sample* sample;
-	bool    sample_changed;
+    // Sample
+    Sample* sample;
+    bool    sample_changed;
 
-	// Ports
-	const LV2_Atom_Sequence* control_port;
-	LV2_Atom_Sequence*       notify_port;
-	float*                   output_port;
-	float*                   input_port;
+    // Ports
+    const LV2_Atom_Sequence* control_port;
+    LV2_Atom_Sequence*       notify_port;
+    float*                   output_port;
+    float*                   input_port;
 
-	// Forge frame for notify port (for writing worker replies)
-	LV2_Atom_Forge_Frame notify_frame;
+    // Forge frame for notify port (for writing worker replies)
+    LV2_Atom_Forge_Frame notify_frame;
 
-	// URIs
-	CabsimURIs uris;
+    // URIs
+    CabsimURIs uris;
 
-	// Current position in run()
-	uint32_t frame_offset;
+    // Current position in run()
+    uint32_t frame_offset;
 
-	// Playback state
-	sf_count_t frame;
-	bool       play;
+    // Playback state
+    sf_count_t frame;
+    bool       play;
     bool       new_sample;
 
     double samplerate;
 
-//CABSIM ========================================
+    //CABSIM ========================================
 
     float *outbuf;
     float *inbuf;
@@ -137,13 +137,13 @@ typedef struct {
 } Cabsim;
 
 typedef struct {
-	LV2_Atom atom;
-	Sample*  sample;
+    LV2_Atom atom;
+    Sample*  sample;
 } SampleMessage;
 
 static uint64_t
 Resample_f32(const float *input, float *output, int inSampleRate, int outSampleRate, uint64_t inputSize,
-                      uint32_t channels) {
+        uint32_t channels) {
     if (input == NULL)
         return 0;
     uint64_t outputSize = inputSize * outSampleRate / inSampleRate;
@@ -157,9 +157,9 @@ Resample_f32(const float *input, float *output, int inSampleRate, int outSampleR
     for (uint32_t i = 0; i < outputSize; i += 1) {
         for (uint32_t c = 0; c < channels; c += 1) {
             *output++ = (float) (input[c] + (input[c + channels] - input[c]) * (
-                    (double) (curOffset >> 32) + ((curOffset & (fixedFraction - 1)) * normFixed)
-            )
-            );
+                        (double) (curOffset >> 32) + ((curOffset & (fixedFraction - 1)) * normFixed)
+                        )
+                    );
         }
         curOffset += step;
         input += (curOffset >> 32) * channels;
@@ -178,50 +178,47 @@ Resample_f32(const float *input, float *output, int inSampleRate, int outSampleR
 static Sample*
 load_sample(Cabsim* self, const char* path)
 {
-	const size_t path_len = strlen(path);
+    const size_t path_len = strlen(path);
 
-	lv2_log_trace(&self->logger, "Loading sample %s\n", path);
+    lv2_log_trace(&self->logger, "Loading sample %s\n", path);
 
-	Sample* const  sample  = (Sample*)malloc(sizeof(Sample));
-	SF_INFO* const info    = &sample->info;
-	SNDFILE* const sndfile = sf_open(path, SFM_READ, info);
+    Sample* const  sample  = (Sample*)malloc(sizeof(Sample));
+    SF_INFO* const info    = &sample->info;
+    SNDFILE* const sndfile = sf_open(path, SFM_READ, info);
 
-	if (!sndfile || !info->frames || (info->channels != 1)) {
-		lv2_log_error(&self->logger, "Failed to open sample '%s'\n", path);
-		free(sample);
-		return NULL;
-	}
+    if (!sndfile || !info->frames || (info->channels != 1)) {
+        lv2_log_error(&self->logger, "Failed to open sample '%s'\n", path);
+        free(sample);
+        return NULL;
+    }
 
-	// Read data
-	float* const data = malloc(sizeof(float) * info->frames);
-	if (!data) {
-		lv2_log_error(&self->logger, "Failed to allocate memory for sample\n");
-		return NULL;
-	}
-	sf_seek(sndfile, 0ul, SEEK_SET);
-	sf_read_float(sndfile, data, info->frames);
-	sf_close(sndfile);
+    // Read data
+    float* const data = malloc(sizeof(float) * info->frames);
+    if (!data) {
+        lv2_log_error(&self->logger, "Failed to allocate memory for sample\n");
+        return NULL;
+    }
+    sf_seek(sndfile, 0ul, SEEK_SET);
+    sf_read_float(sndfile, data, info->frames);
+    sf_close(sndfile);
 
     //apply samplerate conversion if needed
     if (info->samplerate == 48000) {
-        printf("no conversion needed\n");
         sample->data = data;
     } else {
-        printf("Converting samplerate\n");
         uint64_t targetSampleCount = Resample_f32(data, 0, info->samplerate, (int)self->samplerate, (uint64_t)info->frames, 1);
         float* const resampled_data = malloc(targetSampleCount * sizeof(float));
         info->frames = Resample_f32(data, resampled_data, info->samplerate, (int)self->samplerate, (uint64_t)info->frames, 1);
         free(data);
         sample->data = resampled_data;
-        printf("Sample is resampled\n");
     }
 
-	// Fill sample struct and return it
-	sample->path     = (char*)malloc(path_len + 1);
-	sample->path_len = (uint32_t)path_len;
-	memcpy(sample->path, path, path_len + 1);
+    // Fill sample struct and return it
+    sample->path     = (char*)malloc(path_len + 1);
+    sample->path_len = (uint32_t)path_len;
+    memcpy(sample->path, path, path_len + 1);
 
-	return sample;
+    return sample;
 }
 
 static void
@@ -249,31 +246,31 @@ work(LV2_Handle                  instance,
      uint32_t                    size,
      const void*                 data)
 {
-	Cabsim*        self = (Cabsim*)instance;
-	const LV2_Atom* atom = (const LV2_Atom*)data;
-	if (atom->type == self->uris.eg_freeSample) {
-		// Free old sample
-		const SampleMessage* msg = (const SampleMessage*)data;
-		free_sample(self, msg->sample);
-	} else {
-		// Handle set message (load sample).
-		const LV2_Atom_Object* obj = (const LV2_Atom_Object*)data;
+    Cabsim*        self = (Cabsim*)instance;
+    const LV2_Atom* atom = (const LV2_Atom*)data;
+    if (atom->type == self->uris.eg_freeSample) {
+        // Free old sample
+        const SampleMessage* msg = (const SampleMessage*)data;
+        free_sample(self, msg->sample);
+    } else {
+        // Handle set message (load sample).
+        const LV2_Atom_Object* obj = (const LV2_Atom_Object*)data;
 
-		// Get file path from message
-		const LV2_Atom* file_path = read_set_file(&self->uris, obj);
-		if (!file_path) {
-			return LV2_WORKER_ERR_UNKNOWN;
-		}
+        // Get file path from message
+        const LV2_Atom* file_path = read_set_file(&self->uris, obj);
+        if (!file_path) {
+            return LV2_WORKER_ERR_UNKNOWN;
+        }
 
-		// Load sample.
-		Sample* sample = load_sample(self, LV2_ATOM_BODY_CONST(file_path));
-		if (sample) {
-			// Loaded sample, send it to run() to be applied.
-			respond(handle, sizeof(sample), &sample);
-		}
-	}
+        // Load sample.
+        Sample* sample = load_sample(self, LV2_ATOM_BODY_CONST(file_path));
+        if (sample) {
+            // Loaded sample, send it to run() to be applied.
+            respond(handle, sizeof(sample), &sample);
+        }
+    }
 
-	return LV2_WORKER_SUCCESS;
+    return LV2_WORKER_SUCCESS;
 }
 
 /**
@@ -288,26 +285,26 @@ work_response(LV2_Handle  instance,
               uint32_t    size,
               const void* data)
 {
-	Cabsim* self = (Cabsim*)instance;
+    Cabsim* self = (Cabsim*)instance;
 
-	SampleMessage msg = { { sizeof(Sample*), self->uris.eg_freeSample },
-	                      self->sample };
+    SampleMessage msg = { { sizeof(Sample*), self->uris.eg_freeSample },
+        self->sample };
 
-	// Send a message to the worker to free the current sample
-	self->schedule->schedule_work(self->schedule->handle, sizeof(msg), &msg);
+    // Send a message to the worker to free the current sample
+    self->schedule->schedule_work(self->schedule->handle, sizeof(msg), &msg);
 
-	// Install the new sample
-	self->sample = *(Sample*const*)data;
+    // Install the new sample
+    self->sample = *(Sample*const*)data;
 
-	// Send a notification that we're using a new sample.
-	lv2_atom_forge_frame_time(&self->forge, self->frame_offset);
-	write_set_file(&self->forge, &self->uris,
-	               self->sample->path,
-	               self->sample->path_len);
+    // Send a notification that we're using a new sample.
+    lv2_atom_forge_frame_time(&self->forge, self->frame_offset);
+    write_set_file(&self->forge, &self->uris,
+            self->sample->path,
+            self->sample->path_len);
 
     self->new_sample = true;
 
-	return LV2_WORKER_SUCCESS;
+    return LV2_WORKER_SUCCESS;
 }
 
 static void
@@ -315,26 +312,26 @@ connect_port(LV2_Handle instance,
              uint32_t   port,
              void*      data)
 {
-	Cabsim* self = (Cabsim*)instance;
-	switch (port) {
-	case CABSIM_CONTROL:
-		self->control_port = (const LV2_Atom_Sequence*)data;
-		break;
-	case CABSIM_NOTIFY:
-		self->notify_port = (LV2_Atom_Sequence*)data;
-		break;
-    case CABSIM_IN:
-        self->input_port  = (float*)data;
-        break;
-	case CABSIM_OUT:
-		self->output_port = (float*)data;
-		break;
-    case ATTENUATE:
-        self->attenuation = (const float*) data;
-        break;
-	default:
-		break;
-	}
+    Cabsim* self = (Cabsim*)instance;
+    switch (port) {
+        case CABSIM_CONTROL:
+            self->control_port = (const LV2_Atom_Sequence*)data;
+            break;
+        case CABSIM_NOTIFY:
+            self->notify_port = (LV2_Atom_Sequence*)data;
+            break;
+        case CABSIM_IN:
+            self->input_port  = (float*)data;
+            break;
+        case CABSIM_OUT:
+            self->output_port = (float*)data;
+            break;
+        case ATTENUATE:
+            self->attenuation = (const float*) data;
+            break;
+        default:
+            break;
+    }
 }
 
 static LV2_Handle
@@ -343,36 +340,36 @@ instantiate(const LV2_Descriptor*     descriptor,
             const char*               path,
             const LV2_Feature* const* features)
 {
-	// Allocate and initialise instance structure.
-	Cabsim* self = (Cabsim*)malloc(sizeof(Cabsim));
-	if (!self) {
-		return NULL;
-	}
-	memset(self, 0, sizeof(Cabsim));
+    // Allocate and initialise instance structure.
+    Cabsim* self = (Cabsim*)malloc(sizeof(Cabsim));
+    if (!self) {
+        return NULL;
+    }
+    memset(self, 0, sizeof(Cabsim));
 
     self->samplerate = rate;
-	// Get host features
-	for (int i = 0; features[i]; ++i) {
-		if (!strcmp(features[i]->URI, LV2_URID__map)) {
-			self->map = (LV2_URID_Map*)features[i]->data;
-		} else if (!strcmp(features[i]->URI, LV2_WORKER__schedule)) {
-			self->schedule = (LV2_Worker_Schedule*)features[i]->data;
-		} else if (!strcmp(features[i]->URI, LV2_LOG__log)) {
-			self->log = (LV2_Log_Log*)features[i]->data;
-		}
-	}
-	if (!self->map) {
-		lv2_log_error(&self->logger, "Missing feature urid:map\n");
-		goto fail;
-	} else if (!self->schedule) {
-		lv2_log_error(&self->logger, "Missing feature work:schedule\n");
-		goto fail;
-	}
+    // Get host features
+    for (int i = 0; features[i]; ++i) {
+        if (!strcmp(features[i]->URI, LV2_URID__map)) {
+            self->map = (LV2_URID_Map*)features[i]->data;
+        } else if (!strcmp(features[i]->URI, LV2_WORKER__schedule)) {
+            self->schedule = (LV2_Worker_Schedule*)features[i]->data;
+        } else if (!strcmp(features[i]->URI, LV2_LOG__log)) {
+            self->log = (LV2_Log_Log*)features[i]->data;
+        }
+    }
+    if (!self->map) {
+        lv2_log_error(&self->logger, "Missing feature urid:map\n");
+        goto fail;
+    } else if (!self->schedule) {
+        lv2_log_error(&self->logger, "Missing feature work:schedule\n");
+        goto fail;
+    }
 
-	// Map URIs and initialise forge/logger
-	map_cabsim_uris(self->map, &self->uris);
-	lv2_atom_forge_init(&self->forge, self->map);
-	lv2_log_logger_init(&self->logger, self->map, self->log);
+    // Map URIs and initialise forge/logger
+    map_cabsim_uris(self->map, &self->uris);
+    lv2_atom_forge_init(&self->forge, self->map);
+    lv2_log_logger_init(&self->logger, self->map, self->log);
 
     self->outComplex = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*(SIZE));
     self->IRout =  (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*(SIZE));
@@ -393,11 +390,11 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->init_cabsim = false;
     self->new_sample = false;
 
-	return (LV2_Handle)self;
+    return (LV2_Handle)self;
 
 fail:
-	free(self);
-	return 0;
+    free(self);
+    return 0;
 }
 
 static void
@@ -415,31 +412,31 @@ static void
 run(LV2_Handle instance,
     uint32_t   sample_count)
 {
-	Cabsim*     self        = (Cabsim*)instance;
-	CabsimURIs* uris        = &self->uris;
-	float*      input       = self->input_port;
-	float*      output      = self->output_port;
+    Cabsim*     self   = (Cabsim*)instance;
+    CabsimURIs* uris   = &self->uris;
+    float*      input  = self->input_port;
+    float*      output = self->output_port;
 
-    float *outbuf = self->outbuf;
-    float *inbuf = self->inbuf;
-    float *IR = self->IR;
+    float *outbuf  = self->outbuf;
+    float *inbuf   = self->inbuf;
+    float *IR      = self->IR;
     float *overlap = self->overlap;
-    float *oA = self->oA;
-    float *oB = self->oB;
-    float *oC = self->oC;
+    float *oA      = self->oA;
+    float *oB      = self->oB;
+    float *oC      = self->oC;
 
-	// Set up forge to write directly to notify output port.
-	const uint32_t notify_capacity = self->notify_port->atom.size;
-	lv2_atom_forge_set_buffer(&self->forge,
-	                          (uint8_t*)self->notify_port,
-	                          notify_capacity);
+    // Set up forge to write directly to notify output port.
+    const uint32_t notify_capacity = self->notify_port->atom.size;
+    lv2_atom_forge_set_buffer(&self->forge,
+            (uint8_t*)self->notify_port,
+            notify_capacity);
 
-	// Start a sequence in the notify output port.
-	lv2_atom_forge_sequence_head(&self->forge, &self->notify_frame, 0);
+    // Start a sequence in the notify output port.
+    lv2_atom_forge_sequence_head(&self->forge, &self->notify_frame, 0);
 
-	// Read incoming events
-	LV2_ATOM_SEQUENCE_FOREACH(self->control_port, ev) {
-		self->frame_offset = ev->time.frames;
+    // Read incoming events
+    LV2_ATOM_SEQUENCE_FOREACH(self->control_port, ev) {
+        self->frame_offset = ev->time.frames;
         if (lv2_atom_forge_is_object_type(&self->forge, ev->body.type)) {
             const LV2_Atom_Object* obj = (const LV2_Atom_Object*)&ev->body;
             if (obj->body.otype == uris->patch_Set) {
@@ -480,12 +477,12 @@ run(LV2_Handle instance,
                         "Unknown object type %d\n", obj->body.otype);
             }
         } else {
-			lv2_log_trace(&self->logger,
-			              "Unknown event type %d\n", ev->body.type);
-		}
-	}
+            lv2_log_trace(&self->logger,
+                    "Unknown event type %d\n", ev->body.type);
+        }
+    }
 
-// CABSIM =================================================================
+    // CABSIM =================================================================
 
     const float attenuation = *self->attenuation;
 
@@ -507,18 +504,18 @@ run(LV2_Handle instance,
     //copy inputbuffer and IR buffer with zero padding.
     if(self->new_sample)
     {
-    	for ( i = 0; i < sample_count * multiplier; i++)
-    	{
-        	inbuf[i] = (i < sample_count) ? (input[i] * coef * 0.2f): 0.0f;
-        	IR[i] = (i < sample_count) ? self->sample->data[i] : 0.0f;
+        for ( i = 0; i < sample_count * multiplier; i++)
+        {
+            inbuf[i] = (i < sample_count) ? (input[i] * coef * 0.2f): 0.0f;
+            IR[i] = (i < sample_count) ? self->sample->data[i] : 0.0f;
         }
         self->new_sample = false;
     }
     else
     {
-    	for ( i = 0; i < sample_count * multiplier; i++)
-    	{
-        	inbuf[i] = (i < sample_count) ? (input[i] * coef * 0.2f): 0.0f;
+        for ( i = 0; i < sample_count * multiplier; i++)
+        {
+            inbuf[i] = (i < sample_count) ? (input[i] * coef * 0.2f): 0.0f;
         }
     }
 
@@ -576,30 +573,30 @@ save(LV2_Handle                instance,
      uint32_t                  flags,
      const LV2_Feature* const* features)
 {
-	Cabsim* self = (Cabsim*)instance;
-	if (!self->sample) {
-		return LV2_STATE_SUCCESS;
-	}
+    Cabsim* self = (Cabsim*)instance;
+    if (!self->sample) {
+        return LV2_STATE_SUCCESS;
+    }
 
-	LV2_State_Map_Path* map_path = NULL;
-	for (int i = 0; features[i]; ++i) {
-		if (!strcmp(features[i]->URI, LV2_STATE__mapPath)) {
-			map_path = (LV2_State_Map_Path*)features[i]->data;
-		}
-	}
+    LV2_State_Map_Path* map_path = NULL;
+    for (int i = 0; features[i]; ++i) {
+        if (!strcmp(features[i]->URI, LV2_STATE__mapPath)) {
+            map_path = (LV2_State_Map_Path*)features[i]->data;
+        }
+    }
 
-	char* apath = map_path->abstract_path(map_path->handle, self->sample->path);
+    char* apath = map_path->abstract_path(map_path->handle, self->sample->path);
 
-	store(handle,
-	      self->uris.eg_sample,
-	      apath,
-	      strlen(self->sample->path) + 1,
-	      self->uris.atom_Path,
-	      LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+    store(handle,
+            self->uris.eg_sample,
+            apath,
+            strlen(self->sample->path) + 1,
+            self->uris.atom_Path,
+            LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
 
-	free(apath);
+    free(apath);
 
-	return LV2_STATE_SUCCESS;
+    return LV2_STATE_SUCCESS;
 }
 
 static LV2_State_Status
@@ -609,59 +606,59 @@ restore(LV2_Handle                  instance,
         uint32_t                    flags,
         const LV2_Feature* const*   features)
 {
-	Cabsim* self = (Cabsim*)instance;
+    Cabsim* self = (Cabsim*)instance;
 
-	size_t   size;
-	uint32_t type;
-	uint32_t valflags;
+    size_t   size;
+    uint32_t type;
+    uint32_t valflags;
 
-	const void* value = retrieve(
-		handle,
-		self->uris.eg_sample,
-		&size, &type, &valflags);
+    const void* value = retrieve(
+            handle,
+            self->uris.eg_sample,
+            &size, &type, &valflags);
 
-	if (value) {
-		const char* path = (const char*)value;
-		lv2_log_trace(&self->logger, "Restoring file %s\n", path);
-		free_sample(self, self->sample);
-		self->sample = load_sample(self, path);
-		self->sample_changed = true;
-	}
+    if (value) {
+        const char* path = (const char*)value;
+        lv2_log_trace(&self->logger, "Restoring file %s\n", path);
+        free_sample(self, self->sample);
+        self->sample = load_sample(self, path);
+        self->sample_changed = true;
+    }
 
-	return LV2_STATE_SUCCESS;
+    return LV2_STATE_SUCCESS;
 }
 
 static const void*
 extension_data(const char* uri)
 {
-	static const LV2_State_Interface  state  = { save, restore };
-	static const LV2_Worker_Interface worker = { work, work_response, NULL };
-	if (!strcmp(uri, LV2_STATE__interface)) {
-		return &state;
-	} else if (!strcmp(uri, LV2_WORKER__interface)) {
-		return &worker;
-	}
-	return NULL;
+    static const LV2_State_Interface  state  = { save, restore };
+    static const LV2_Worker_Interface worker = { work, work_response, NULL };
+    if (!strcmp(uri, LV2_STATE__interface)) {
+        return &state;
+    } else if (!strcmp(uri, LV2_WORKER__interface)) {
+        return &worker;
+    }
+    return NULL;
 }
 
 static const LV2_Descriptor descriptor = {
-	CABSIM_URI,
-	instantiate,
-	connect_port,
-	NULL,  // activate,
-	run,
-	NULL,  // deactivate,
-	cleanup,
-	extension_data
+    CABSIM_URI,
+    instantiate,
+    connect_port,
+    NULL,  // activate,
+    run,
+    NULL,  // deactivate,
+    cleanup,
+    extension_data
 };
 
 LV2_SYMBOL_EXPORT
 const LV2_Descriptor* lv2_descriptor(uint32_t index)
 {
-	switch (index) {
-	case 0:
-		return &descriptor;
-	default:
-		return NULL;
-	}
+    switch (index) {
+        case 0:
+            return &descriptor;
+        default:
+            return NULL;
+    }
 }
