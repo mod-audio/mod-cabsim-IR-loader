@@ -20,6 +20,15 @@
 	a lv2:Plugin ;
 	doap:name "IR loader cabsim" ;
 
+doap:license "GPL";
+
+rdfs:comment """
+A cabinet simulator that loads IR files.
+
+Features:
+Plugin by MOD Devices
+""";
+
 doap:developer [
     foaf:name "Jarno Verheesen & Bram Giesen";
     foaf:homepage <>;
