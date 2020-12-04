@@ -150,6 +150,17 @@
 }
 
 /* ENUMERATED LIST */
+
+
+.mod-cabinet{{{cns}}} .mod-enumerated-group {
+    height:31px;
+    margin:20px auto 0 !important;
+    position:relative;
+    width:190px;
+    top:-10px;
+    z-index:35;
+}
+
 .mod-cabinet{{{cns}}} .mod-enumerated {
     color: #000;
     display: inline-block;
@@ -221,7 +232,7 @@
     background-repeat: no-repeat;
     background-size: auto 55px;
     height: 55px;
-    margin-top: 3px;
+    margin-top: 5px;
     position: relative;
     width: 55px;
     z-index: 2;
