@@ -89,7 +89,6 @@ typedef struct {
 
     // Sample
     Sample* sample;
-    bool    sample_changed;
 
     // Ports
     const LV2_Atom_Sequence* control_port;
@@ -425,6 +424,7 @@ run(LV2_Handle instance,
     float *oB      = self->oB;
     float *oC      = self->oC;
 
+
     // Set up forge to write directly to notify output port.
     const uint32_t notify_capacity = self->notify_port->atom.size;
     lv2_atom_forge_set_buffer(&self->forge,
@@ -509,6 +509,13 @@ run(LV2_Handle instance,
             inbuf[i] = (i < sample_count) ? (input[i] * coef * 0.2f): 0.0f;
             IR[i] = (i < sample_count) ? self->sample->data[i] : 0.0f;
         }
+
+        lv2_log_trace(&self->logger, "Responding to get request\n");
+        lv2_atom_forge_frame_time(&self->forge, self->frame_offset);
+        write_set_file(&self->forge, &self->uris,
+                self->sample->path,
+                self->sample->path_len);
+
         self->new_sample = false;
     }
     else
@@ -622,7 +629,7 @@ restore(LV2_Handle                  instance,
         lv2_log_trace(&self->logger, "Restoring file %s\n", path);
         free_sample(self, self->sample);
         self->sample = load_sample(self, path);
-        self->sample_changed = true;
+        self->new_sample = true;
     }
 
     return LV2_STATE_SUCCESS;
