@@ -1,5 +1,5 @@
 /*
-  This file taken from the LV2 Sampler Example Plugin
+  This file taken from the LV2 ImpulseResponser Example Plugin
   Copyright 2011-2012 David Robillard <d@drobilla.net>
 
   Permission to use, copy, modify, and/or distribute this software for any
@@ -23,10 +23,10 @@
 #include "lv2/lv2plug.in/ns/ext/state/state.h"
 #include "lv2/lv2plug.in/ns/ext/parameters/parameters.h"
 
-#define CABSIM_URI          "http://moddevices.com/plugins/mod-devel/cabsim-IR-loader"
-#define CABSIM__sample      CABSIM_URI "#sample"
-#define CABSIM__applySample CABSIM_URI "#applySample"
-#define CABSIM__freeSample  CABSIM_URI "#freeSample"
+#define CABSIM_URI "http://moddevices.com/plugins/mod-devel/cabsim-IR-loader"
+#define CABSIM__ir CABSIM_URI "#ir"
+#define CABSIM__applyImpulseResponse CABSIM_URI "#applyImpulseResponse"
+#define CABSIM__freeImpulseResponse  CABSIM_URI "#freeImpulseResponse"
 
 typedef struct {
 	LV2_URID atom_Float;
@@ -35,9 +35,9 @@ typedef struct {
 	LV2_URID atom_Sequence;
 	LV2_URID atom_URID;
 	LV2_URID atom_eventTransfer;
-	LV2_URID eg_applySample;
-	LV2_URID eg_sample;
-	LV2_URID eg_freeSample;
+	LV2_URID cab_applyImpulseResponse;
+	LV2_URID cab_ir;
+	LV2_URID cab_freeImpulseResponse;
 	LV2_URID midi_Event;
 	LV2_URID param_gain;
 	LV2_URID patch_Get;
@@ -49,28 +49,28 @@ typedef struct {
 static inline void
 map_cabsim_uris(LV2_URID_Map* map, CabsimURIs* uris)
 {
-	uris->atom_Float         = map->map(map->handle, LV2_ATOM__Float);
-	uris->atom_Path          = map->map(map->handle, LV2_ATOM__Path);
-	uris->atom_Resource      = map->map(map->handle, LV2_ATOM__Resource);
-	uris->atom_Sequence      = map->map(map->handle, LV2_ATOM__Sequence);
-	uris->atom_URID          = map->map(map->handle, LV2_ATOM__URID);
-	uris->atom_eventTransfer = map->map(map->handle, LV2_ATOM__eventTransfer);
-	uris->eg_applySample     = map->map(map->handle, CABSIM__applySample);
-	uris->eg_freeSample      = map->map(map->handle, CABSIM__freeSample);
-	uris->eg_sample          = map->map(map->handle, CABSIM__sample);
-	uris->midi_Event         = map->map(map->handle, LV2_MIDI__MidiEvent);
-	uris->param_gain         = map->map(map->handle, LV2_PARAMETERS__gain);
-	uris->patch_Get          = map->map(map->handle, LV2_PATCH__Get);
-	uris->patch_Set          = map->map(map->handle, LV2_PATCH__Set);
-	uris->patch_property     = map->map(map->handle, LV2_PATCH__property);
-	uris->patch_value        = map->map(map->handle, LV2_PATCH__value);
+	uris->atom_Float               = map->map(map->handle, LV2_ATOM__Float);
+	uris->atom_Path                = map->map(map->handle, LV2_ATOM__Path);
+	uris->atom_Resource            = map->map(map->handle, LV2_ATOM__Resource);
+	uris->atom_Sequence            = map->map(map->handle, LV2_ATOM__Sequence);
+	uris->atom_URID                = map->map(map->handle, LV2_ATOM__URID);
+	uris->atom_eventTransfer       = map->map(map->handle, LV2_ATOM__eventTransfer);
+	uris->cab_applyImpulseResponse = map->map(map->handle, CABSIM__applyImpulseResponse);
+	uris->cab_freeImpulseResponse  = map->map(map->handle, CABSIM__freeImpulseResponse);
+	uris->cab_ir                   = map->map(map->handle, CABSIM__ir);
+	uris->midi_Event               = map->map(map->handle, LV2_MIDI__MidiEvent);
+	uris->param_gain               = map->map(map->handle, LV2_PARAMETERS__gain);
+	uris->patch_Get                = map->map(map->handle, LV2_PATCH__Get);
+	uris->patch_Set                = map->map(map->handle, LV2_PATCH__Set);
+	uris->patch_property           = map->map(map->handle, LV2_PATCH__property);
+	uris->patch_value              = map->map(map->handle, LV2_PATCH__value);
 }
 
 /**
  * Write a message like the following to @p forge:
  * []
  *     a patch:Set ;
- *     patch:property eg:sample ;
+ *     patch:property eg:ir ;
  *     patch:value </home/me/foo.wav> .
  */
 static inline LV2_Atom*
@@ -84,7 +84,7 @@ write_set_file(LV2_Atom_Forge*    forge,
 		forge, &frame, 0, uris->patch_Set);
 
 	lv2_atom_forge_key(forge, uris->patch_property);
-	lv2_atom_forge_urid(forge, uris->eg_sample);
+	lv2_atom_forge_urid(forge, uris->cab_ir);
 	lv2_atom_forge_key(forge, uris->patch_value);
 	lv2_atom_forge_path(forge, filename, filename_len);
 
@@ -111,7 +111,7 @@ read_set_file(const CabsimURIs*     uris,
 	} else if (property->type != uris->atom_URID) {
 		fprintf(stderr, "Malformed set message has non-URID property.\n");
 		return NULL;
-	} else if (((const LV2_Atom_URID*)property)->body != uris->eg_sample) {
+	} else if (((const LV2_Atom_URID*)property)->body != uris->cab_ir) {
 		fprintf(stderr, "Set message for unknown property.\n");
 		return NULL;
 	}

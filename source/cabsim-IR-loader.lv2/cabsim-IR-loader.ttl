@@ -10,7 +10,7 @@
 @prefix foaf: <http://xmlns.com/foaf/0.1/>.
 @prefix mod: <http://moddevices.com/ns/mod#>.
 
-<http://moddevices.com/plugins/mod-devel/cabsim-IR-loader#sample>
+<http://moddevices.com/plugins/mod-devel/cabsim-IR-loader#ir>
 	a lv2:Parameter ;
     mod:fileTypes "ir" ;
 	rdfs:label "Impulse Response" ;
@@ -49,7 +49,7 @@ doap:maintainer [
 		state:loadDefaultState ;
 	lv2:extensionData state:interface ,
 		work:interface ;
-	patch:writable <http://moddevices.com/plugins/mod-devel/cabsim-IR-loader#sample> ;
+	patch:writable <http://moddevices.com/plugins/mod-devel/cabsim-IR-loader#ir> ;
 	lv2:port [
 		a lv2:InputPort ,
 			atom:AtomPort ;
@@ -94,5 +94,5 @@ doap:maintainer [
     ] ;
 
 	state:state [
-		<http://moddevices.com/plugins/mod-devel/cabsim-IR-loader#sample>
+		<http://moddevices.com/plugins/mod-devel/cabsim-IR-loader#ir>
 	] .
