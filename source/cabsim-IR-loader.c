@@ -224,12 +224,12 @@ load_ir(Cabsim* self, const char* path)
 static void
 free_ir(Cabsim* self, ImpulseResponse* ir)
 {
-	if (ir) {
-		lv2_log_trace(&self->logger, "Freeing %s\n", ir->path);
-		free(ir->path);
-		free(ir->data);
-		free(ir);
-	}
+    if (ir) {
+        lv2_log_trace(&self->logger, "Freeing %s\n", ir->path);
+        free(ir->path);
+        free(ir->data);
+        free(ir);
+    }
 }
 
 /**
@@ -401,9 +401,9 @@ fail:
 static void
 cleanup(LV2_Handle instance)
 {
-	Cabsim* self = (Cabsim*)instance;
-	free_ir(self, self->ir);
-	free(self);
+    Cabsim* self = (Cabsim*)instance;
+    free_ir(self, self->ir);
+    free(self);
 }
 
 /** Define a macro for converting a gain in dB to a coefficient. */
@@ -604,10 +604,10 @@ save(LV2_Handle                instance,
                 self->uris.atom_Path,
                 LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
         free(apath);
-		return LV2_STATE_SUCCESS;
+        return LV2_STATE_SUCCESS;
     } else {
-		return LV2_STATE_ERR_UNKNOWN;
-	}
+        return LV2_STATE_ERR_UNKNOWN;
+    }
 }
 
 static LV2_State_Status
