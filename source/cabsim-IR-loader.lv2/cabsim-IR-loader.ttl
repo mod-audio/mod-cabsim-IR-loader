@@ -12,7 +12,7 @@
 
 <http://moddevices.com/plugins/mod-devel/cabsim-IR-loader#ir>
 	a lv2:Parameter ;
-    mod:fileTypes "ir" ;
+    mod:fileTypes "cabsim" ;
 	rdfs:label "Impulse Response" ;
 	rdfs:range atom:Path .
 

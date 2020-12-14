@@ -203,7 +203,7 @@ load_ir(Cabsim* self, const char* path)
     sf_close(sndfile);
 
     //apply samplerate conversion if needed
-    if (info->samplerate == 48000) {
+    if (info->samplerate == (int)self->samplerate) {
         ir->data = data;
     } else {
         uint64_t targetSampleCount = Resample_f32(data, 0, info->samplerate, (int)self->samplerate, (uint64_t)info->frames, 1);
@@ -606,7 +606,7 @@ save(LV2_Handle                instance,
         free(apath);
         return LV2_STATE_SUCCESS;
     } else {
-        return LV2_STATE_ERR_UNKNOWN;
+        return LV2_STATE_ERR_NO_FEATURE;
     }
 }
 
