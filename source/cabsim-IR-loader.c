@@ -70,10 +70,10 @@ enum {
 
 typedef struct {
     SF_INFO  info;      // Info about sample from sndfile
-    float*   data;      // Sample data in float
+    float*   data;      // ImpulseResponse data in float
     char*    path;      // Path of file
     uint32_t path_len;  // Length of path
-} Sample;
+} ImpulseResponse;
 
 typedef struct {
     // Features
@@ -87,8 +87,8 @@ typedef struct {
     // Logger convenience API
     LV2_Log_Logger logger;
 
-    // Sample
-    Sample* sample;
+    // ImpulseResponse
+    ImpulseResponse* ir;
 
     // Ports
     const LV2_Atom_Sequence* control_port;
@@ -108,7 +108,8 @@ typedef struct {
     // Playback state
     sf_count_t frame;
     bool       play;
-    bool       new_sample;
+    bool       new_ir;
+    bool       ir_loaded;
 
     double samplerate;
 
@@ -137,8 +138,8 @@ typedef struct {
 
 typedef struct {
     LV2_Atom atom;
-    Sample*  sample;
-} SampleMessage;
+    ImpulseResponse*  ir;
+} ImpulseResponseMessage;
 
 static uint64_t
 Resample_f32(const float *input, float *output, int inSampleRate, int outSampleRate, uint64_t inputSize,
@@ -168,33 +169,33 @@ Resample_f32(const float *input, float *output, int inSampleRate, int outSampleR
 }
 
 /**
-   Load a new sample and return it.
+   Load a new ir and return it.
 
    Since this is of course not a real-time safe action, this is called in the
-   worker thread only.  The sample is loaded and returned only, plugin state is
+   worker thread only.  The ir is loaded and returned only, plugin state is
    not modified.
 */
-static Sample*
-load_sample(Cabsim* self, const char* path)
+static ImpulseResponse*
+load_ir(Cabsim* self, const char* path)
 {
     const size_t path_len = strlen(path);
 
-    lv2_log_trace(&self->logger, "Loading sample %s\n", path);
+    lv2_log_trace(&self->logger, "Loading ir %s\n", path);
 
-    Sample* const  sample  = (Sample*)malloc(sizeof(Sample));
-    SF_INFO* const info    = &sample->info;
+    ImpulseResponse* const  ir  = (ImpulseResponse*)malloc(sizeof(ImpulseResponse));
+    SF_INFO* const info    = &ir->info;
     SNDFILE* const sndfile = sf_open(path, SFM_READ, info);
 
     if (!sndfile || !info->frames || (info->channels != 1)) {
-        lv2_log_error(&self->logger, "Failed to open sample '%s'\n", path);
-        free(sample);
+        lv2_log_error(&self->logger, "Failed to open ir '%s'\n", path);
+        free(ir);
         return NULL;
     }
 
     // Read data
     float* const data = malloc(sizeof(float) * info->frames);
     if (!data) {
-        lv2_log_error(&self->logger, "Failed to allocate memory for sample\n");
+        lv2_log_error(&self->logger, "Failed to allocate memory for ir\n");
         return NULL;
     }
     sf_seek(sndfile, 0ul, SEEK_SET);
@@ -202,33 +203,33 @@ load_sample(Cabsim* self, const char* path)
     sf_close(sndfile);
 
     //apply samplerate conversion if needed
-    if (info->samplerate == 48000) {
-        sample->data = data;
+    if (info->samplerate == (int)self->samplerate) {
+        ir->data = data;
     } else {
         uint64_t targetSampleCount = Resample_f32(data, 0, info->samplerate, (int)self->samplerate, (uint64_t)info->frames, 1);
         float* const resampled_data = malloc(targetSampleCount * sizeof(float));
         info->frames = Resample_f32(data, resampled_data, info->samplerate, (int)self->samplerate, (uint64_t)info->frames, 1);
         free(data);
-        sample->data = resampled_data;
+        ir->data = resampled_data;
     }
 
-    // Fill sample struct and return it
-    sample->path     = (char*)malloc(path_len + 1);
-    sample->path_len = (uint32_t)path_len;
-    memcpy(sample->path, path, path_len + 1);
+    // Fill ir struct and return it
+    ir->path     = (char*)malloc(path_len + 1);
+    ir->path_len = (uint32_t)path_len;
+    memcpy(ir->path, path, path_len + 1);
 
-    return sample;
+    return ir;
 }
 
 static void
-free_sample(Cabsim* self, Sample* sample)
+free_ir(Cabsim* self, ImpulseResponse* ir)
 {
-	if (sample) {
-		lv2_log_trace(&self->logger, "Freeing %s\n", sample->path);
-		free(sample->path);
-		free(sample->data);
-		free(sample);
-	}
+    if (ir) {
+        lv2_log_trace(&self->logger, "Freeing %s\n", ir->path);
+        free(ir->path);
+        free(ir->data);
+        free(ir);
+    }
 }
 
 /**
@@ -247,12 +248,12 @@ work(LV2_Handle                  instance,
 {
     Cabsim*        self = (Cabsim*)instance;
     const LV2_Atom* atom = (const LV2_Atom*)data;
-    if (atom->type == self->uris.eg_freeSample) {
-        // Free old sample
-        const SampleMessage* msg = (const SampleMessage*)data;
-        free_sample(self, msg->sample);
+    if (atom->type == self->uris.cab_freeImpulseResponse) {
+        // Free old ir
+        const ImpulseResponseMessage* msg = (const ImpulseResponseMessage*)data;
+        free_ir(self, msg->ir);
     } else {
-        // Handle set message (load sample).
+        // Handle set message (load ir).
         const LV2_Atom_Object* obj = (const LV2_Atom_Object*)data;
 
         // Get file path from message
@@ -261,11 +262,11 @@ work(LV2_Handle                  instance,
             return LV2_WORKER_ERR_UNKNOWN;
         }
 
-        // Load sample.
-        Sample* sample = load_sample(self, LV2_ATOM_BODY_CONST(file_path));
-        if (sample) {
-            // Loaded sample, send it to run() to be applied.
-            respond(handle, sizeof(sample), &sample);
+        // Load ir.
+        ImpulseResponse* ir = load_ir(self, LV2_ATOM_BODY_CONST(file_path));
+        if (ir) {
+            // Loaded ir, send it to run() to be applied.
+            respond(handle, sizeof(ir), &ir);
         }
     }
 
@@ -286,22 +287,23 @@ work_response(LV2_Handle  instance,
 {
     Cabsim* self = (Cabsim*)instance;
 
-    SampleMessage msg = { { sizeof(Sample*), self->uris.eg_freeSample },
-        self->sample };
+    ImpulseResponseMessage msg = { { sizeof(ImpulseResponse*), self->uris.cab_freeImpulseResponse },
+        self->ir };
 
-    // Send a message to the worker to free the current sample
+    // Send a message to the worker to free the current ir
     self->schedule->schedule_work(self->schedule->handle, sizeof(msg), &msg);
 
-    // Install the new sample
-    self->sample = *(Sample*const*)data;
+    // Install the new ir
+    self->ir = *(ImpulseResponse*const*)data;
 
-    // Send a notification that we're using a new sample.
+    // Send a notification that we're using a new ir.
     lv2_atom_forge_frame_time(&self->forge, self->frame_offset);
     write_set_file(&self->forge, &self->uris,
-            self->sample->path,
-            self->sample->path_len);
+            self->ir->path,
+            self->ir->path_len);
 
-    self->new_sample = true;
+    self->new_ir = true;
+    self->ir_loaded = false;
 
     return LV2_WORKER_SUCCESS;
 }
@@ -387,7 +389,7 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->ifft = fftwf_plan_dft_c2r_1d(SIZE, self->convolved, self->outbuf, FFTW_ESTIMATE);
 
     self->init_cabsim = false;
-    self->new_sample = false;
+    self->new_ir = false;
 
     return (LV2_Handle)self;
 
@@ -399,9 +401,9 @@ fail:
 static void
 cleanup(LV2_Handle instance)
 {
-	Cabsim* self = (Cabsim*)instance;
-	free_sample(self, self->sample);
-	free(self);
+    Cabsim* self = (Cabsim*)instance;
+    free_ir(self, self->ir);
+    free(self);
 }
 
 /** Define a macro for converting a gain in dB to a coefficient. */
@@ -409,7 +411,7 @@ cleanup(LV2_Handle instance)
 
 static void
 run(LV2_Handle instance,
-    uint32_t   sample_count)
+    uint32_t   n_frames)
 {
     Cabsim*     self   = (Cabsim*)instance;
     CabsimURIs* uris   = &self->uris;
@@ -458,20 +460,13 @@ run(LV2_Handle instance,
                 }
 
                 const uint32_t key = ((const LV2_Atom_URID*)property)->body;
-                if (key == uris->eg_sample) {
-                    // Sample change, send it to the worker.
+                if (key == uris->cab_ir) {
+                    // ImpulseResponse change, send it to the worker.
                     lv2_log_trace(&self->logger, "Queueing set message\n");
                     self->schedule->schedule_work(self->schedule->handle,
                             lv2_atom_total_size(&ev->body),
                             &ev->body);
                 }
-            } else if (obj->body.otype == uris->patch_Get) {
-                //// Received a get message, emit our state (probably to UI)
-                //lv2_log_trace(&self->logger, "Responding to get request\n");
-                //lv2_atom_forge_frame_time(&self->forge, self->frame_offset);
-                //write_set_file(&self->forge, &self->uris,
-                //        self->sample->path,
-                //        self->sample->path_len);
             } else {
                 lv2_log_trace(&self->logger,
                         "Unknown object type %d\n", obj->body.otype);
@@ -492,84 +487,91 @@ run(LV2_Handle instance,
 
     int multiplier = 0;
 
-    if(sample_count == 128)
+    if(n_frames == 128)
     {
         multiplier = 4;
     }
-    else if (sample_count == 256)
+    else if (n_frames == 256)
     {
         multiplier = 2;
     }
 
     //copy inputbuffer and IR buffer with zero padding.
-    if(self->new_sample)
+    if(self->new_ir)
     {
-        for ( i = 0; i < sample_count * multiplier; i++)
+        for ( i = 0; i < n_frames * multiplier; i++)
         {
-            inbuf[i] = (i < sample_count) ? (input[i] * coef * 0.2f): 0.0f;
-            IR[i] = (i < sample_count) ? self->sample->data[i] : 0.0f;
+            inbuf[i] = (i < n_frames) ? (input[i] * coef * 0.2f): 0.0f;
+            IR[i] = (i < n_frames && i < self->ir->info.frames) ? self->ir->data[i] : 0.0f;
         }
+
+        fftwf_execute(self->IRfft);
 
         lv2_log_trace(&self->logger, "Responding to get request\n");
         lv2_atom_forge_frame_time(&self->forge, self->frame_offset);
         write_set_file(&self->forge, &self->uris,
-                self->sample->path,
-                self->sample->path_len);
+                self->ir->path,
+                self->ir->path_len);
 
-        self->new_sample = false;
+        self->new_ir = false;
+        self->ir_loaded = true;
     }
     else
     {
-        for ( i = 0; i < sample_count * multiplier; i++)
+        for ( i = 0; i < n_frames * multiplier; i++)
         {
-            inbuf[i] = (i < sample_count) ? (input[i] * coef * 0.2f): 0.0f;
+            inbuf[i] = (i < n_frames) ? (input[i] * coef * 0.2f): 0.0f;
         }
     }
 
     fftwf_execute(self->fft);
-    fftwf_execute(self->IRfft);
 
-    //complex multiplication
-    for(m = 0; m < ((sample_count / 2) * multiplier) ;m++)
-    {
-        //real component
-        self->convolved[m][REAL] = self->outComplex[m][REAL] * self->IRout[m][REAL] - self->outComplex[m][IMAG] * self->IRout[m][IMAG];
-        //imaginary component
-        self->convolved[m][IMAG] = self->outComplex[m][REAL] * self->IRout[m][IMAG] + self->outComplex[m][IMAG] * self->IRout[m][REAL];
-    }
+    if (self->ir_loaded) {
 
-    fftwf_execute(self->ifft);
-
-    //normalize output with overlap add.
-    if(sample_count == 256)
-    {
-        for ( j = 0; j < sample_count * multiplier; j++)
+        //complex multiplication
+        for(m = 0; m < ((n_frames / 2) * multiplier) ;m++)
         {
-            if(j < sample_count)
+            //real component
+            self->convolved[m][REAL] = self->outComplex[m][REAL] * self->IRout[m][REAL] - self->outComplex[m][IMAG] * self->IRout[m][IMAG];
+            //imaginary component
+            self->convolved[m][IMAG] = self->outComplex[m][REAL] * self->IRout[m][IMAG] + self->outComplex[m][IMAG] * self->IRout[m][REAL];
+        }
+
+        fftwf_execute(self->ifft);
+
+        //normalize output with overlap add.
+        if(n_frames == 256)
+        {
+            for ( j = 0; j < n_frames * multiplier; j++)
             {
-                output[j] = ((outbuf[j] / (sample_count * multiplier)) + overlap[j]);
-            }
-            else
-            {
-                overlap[j - sample_count] = outbuf[j]  / (sample_count * multiplier);
+                if(j < n_frames)
+                {
+                    output[j] = ((outbuf[j] / (n_frames * multiplier)) + overlap[j]);
+                }
+                else
+                {
+                    overlap[j - n_frames] = outbuf[j]  / (n_frames * multiplier);
+                }
             }
         }
-    }
-    else if (sample_count == 128)      //HIER VERDER GAAN!!!!!! oA, oB, oC changed malloc to calloc. (initiate buffer with all zeroes)
-    {
-        for ( j = 0; j < sample_count * multiplier; j++)
+        else if (n_frames == 128)      //HIER VERDER GAAN!!!!!! oA, oB, oC changed malloc to calloc. (initiate buffer with all zeroes)
         {
-            if(j < sample_count)   //runs 128 times filling the output buffer with overap add
+            for ( j = 0; j < n_frames * multiplier; j++)
             {
-                output[j] = (outbuf[j] / (sample_count * multiplier) + oA[j] + oB[j] + oC[j]);
-            }
-            else
-            {
-                oC[j - sample_count] = oB[j]; // 128 samples of usefull data
-                oB[j - sample_count] = oA[j];  //filled with samples 128 to 255 of usefull data
-                oA[j - sample_count] = (outbuf[j] / (sample_count * multiplier)); //filled with 384 samples
+                if(j < n_frames)   //runs 128 times filling the output buffer with overap add
+                {
+                    output[j] = (outbuf[j] / (n_frames * multiplier) + oA[j] + oB[j] + oC[j]);
+                }
+                else
+                {
+                    oC[j - n_frames] = oB[j]; // 128 samples of usefull data
+                    oB[j - n_frames] = oA[j];  //filled with samples 128 to 255 of usefull data
+                    oA[j - n_frames] = (outbuf[j] / (n_frames * multiplier)); //filled with 384 samples
+                }
             }
         }
+    } else {
+        memset(output, 0, sizeof(float)*n_frames);
     }
 }
 
@@ -581,7 +583,8 @@ save(LV2_Handle                instance,
      const LV2_Feature* const* features)
 {
     Cabsim* self = (Cabsim*)instance;
-    if (!self->sample) {
+
+    if (!self->ir) {
         return LV2_STATE_SUCCESS;
     }
 
@@ -592,18 +595,19 @@ save(LV2_Handle                instance,
         }
     }
 
-    char* apath = map_path->abstract_path(map_path->handle, self->sample->path);
-
-    store(handle,
-            self->uris.eg_sample,
-            apath,
-            strlen(self->sample->path) + 1,
-            self->uris.atom_Path,
-            LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
-
-    free(apath);
-
-    return LV2_STATE_SUCCESS;
+    if (map_path) {
+        char* apath = map_path->abstract_path(map_path->handle, self->ir->path);
+        store(handle,
+                self->uris.cab_ir,
+                apath,
+                strlen(self->ir->path) + 1,
+                self->uris.atom_Path,
+                LV2_STATE_IS_POD | LV2_STATE_IS_PORTABLE);
+        free(apath);
+        return LV2_STATE_SUCCESS;
+    } else {
+        return LV2_STATE_ERR_NO_FEATURE;
+    }
 }
 
 static LV2_State_Status
@@ -621,15 +625,15 @@ restore(LV2_Handle                  instance,
 
     const void* value = retrieve(
             handle,
-            self->uris.eg_sample,
+            self->uris.cab_ir,
             &size, &type, &valflags);
 
     if (value) {
         const char* path = (const char*)value;
         lv2_log_trace(&self->logger, "Restoring file %s\n", path);
-        free_sample(self, self->sample);
-        self->sample = load_sample(self, path);
-        self->new_sample = true;
+        free_ir(self, self->ir);
+        self->ir = load_ir(self, path);
+        self->new_ir = true;
     }
 
     return LV2_STATE_SUCCESS;
