@@ -296,12 +296,6 @@ work_response(LV2_Handle  instance,
     // Install the new ir
     self->ir = *(ImpulseResponse*const*)data;
 
-    // Send a notification that we're using a new ir.
-    lv2_atom_forge_frame_time(&self->forge, self->frame_offset);
-    write_set_file(&self->forge, &self->uris,
-            self->ir->path,
-            self->ir->path_len);
-
     self->new_ir = true;
     self->ir_loaded = false;
 
