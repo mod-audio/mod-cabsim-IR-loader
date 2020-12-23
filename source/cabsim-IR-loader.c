@@ -142,8 +142,9 @@ typedef struct {
 } ImpulseResponseMessage;
 
 static uint64_t
-Resample_f32(const float *input, float *output, int inSampleRate, int outSampleRate, uint64_t inputSize,
-        uint32_t channels) {
+Resample_f32(const float *input, float *output, int inSampleRate,
+        int outSampleRate, uint64_t inputSize, uint32_t channels)
+{
     if (input == NULL)
         return 0;
     uint64_t outputSize = inputSize * outSampleRate / inSampleRate;
@@ -157,14 +158,25 @@ Resample_f32(const float *input, float *output, int inSampleRate, int outSampleR
     for (uint32_t i = 0; i < outputSize; i += 1) {
         for (uint32_t c = 0; c < channels; c += 1) {
             *output++ = (float) (input[c] + (input[c + channels] - input[c]) * (
-                        (double) (curOffset >> 32) + ((curOffset & (fixedFraction - 1)) * normFixed)
-                        )
-                    );
+                        (double) (curOffset >> 32) + ((curOffset & (fixedFraction - 1)) * normFixed)));
         }
         curOffset += step;
         input += (curOffset >> 32) * channels;
         curOffset &= (fixedFraction - 1);
     }
+    return outputSize;
+}
+
+static uint64_t
+convert_to_mono(float *input, uint64_t inputSize, uint32_t channels)
+{
+    uint64_t mono_index = 0;
+    for (uint64_t i = 0; i < inputSize; i+=channels) {
+        input[mono_index++] = input[i];
+    }
+
+    uint64_t outputSize = mono_index;
+
     return outputSize;
 }
 
@@ -186,7 +198,7 @@ load_ir(Cabsim* self, const char* path)
     SF_INFO* const info    = &ir->info;
     SNDFILE* const sndfile = sf_open(path, SFM_READ, info);
 
-    if (!sndfile || !info->frames || (info->channels != 1)) {
+    if (!sndfile || !info->frames) {
         lv2_log_error(&self->logger, "Failed to open ir '%s'\n", path);
         free(ir);
         return NULL;
@@ -201,6 +213,11 @@ load_ir(Cabsim* self, const char* path)
     sf_seek(sndfile, 0ul, SEEK_SET);
     sf_read_float(sndfile, data, info->frames);
     sf_close(sndfile);
+
+    //When IR has multiple channels, only use first channel
+    if (info->frames != 1) {
+        info->frames = convert_to_mono(data, info->frames, info->channels);
+    }
 
     //apply samplerate conversion if needed
     if (info->samplerate == (int)self->samplerate) {
