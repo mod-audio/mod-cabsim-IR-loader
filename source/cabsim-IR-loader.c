@@ -53,7 +53,7 @@
 #define REAL 0
 #define IMAG 1
 
-#define SIZE 512
+#define MAX_FFT_SIZE 512
 
 //macro for Volume in DB to a coefficient
 #define DB_CO(g) ((g) > -90.0f ? powf(10.0f, (g) * 0.05f) : 0.0f)
@@ -383,21 +383,21 @@ instantiate(const LV2_Descriptor*     descriptor,
     lv2_atom_forge_init(&self->forge, self->map);
     lv2_log_logger_init(&self->logger, self->map, self->log);
 
-    self->outComplex = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*(SIZE));
-    self->IRout =  (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*(SIZE));
-    self->convolved =  (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*(SIZE));
+    self->outComplex = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*(MAX_FFT_SIZE));
+    self->IRout =  (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*(MAX_FFT_SIZE));
+    self->convolved =  (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*(MAX_FFT_SIZE));
 
-    self->overlap = (float *) calloc((SIZE),sizeof(float));
-    self->outbuf = (float *) calloc((SIZE),sizeof(float));
-    self->inbuf = (float *) calloc((SIZE),sizeof(float));
-    self->IR = (float *) calloc((SIZE),sizeof(float));
-    self->oA = (float *) calloc((SIZE),sizeof(float));
-    self->oB = (float *) calloc((SIZE),sizeof(float));
-    self->oC = (float *) calloc((SIZE),sizeof(float));
+    self->overlap = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
+    self->outbuf = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
+    self->inbuf = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
+    self->IR = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
+    self->oA = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
+    self->oB = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
+    self->oC = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
 
-    self->fft = fftwf_plan_dft_r2c_1d(SIZE, self->inbuf, self->outComplex, FFTW_ESTIMATE);
-    self->IRfft = fftwf_plan_dft_r2c_1d(SIZE, self->IR, self->IRout, FFTW_ESTIMATE);
-    self->ifft = fftwf_plan_dft_c2r_1d(SIZE, self->convolved, self->outbuf, FFTW_ESTIMATE);
+    self->fft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->inbuf, self->outComplex, FFTW_ESTIMATE);
+    self->IRfft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->IR, self->IRout, FFTW_ESTIMATE);
+    self->ifft = fftwf_plan_dft_c2r_1d(MAX_FFT_SIZE, self->convolved, self->outbuf, FFTW_ESTIMATE);
 
     self->init_cabsim = false;
     self->new_ir = false;
@@ -511,7 +511,7 @@ run(LV2_Handle instance,
     //copy inputbuffer and IR buffer with zero padding.
     if(self->new_ir)
     {
-        for ( i = 0; i < SIZE; i++)
+        for ( i = 0; i < MAX_FFT_SIZE; i++)
         {
             inbuf[i] = (i < n_frames) ? (input[i] * coef * 0.2f): 0.0f;
             IR[i] = (i < n_frames && i < self->ir->info.frames) ? self->ir->data[i] : 0.0f;
@@ -530,7 +530,7 @@ run(LV2_Handle instance,
     }
     else
     {
-        for ( i = 0; i < SIZE; i++)
+        for ( i = 0; i < MAX_FFT_SIZE; i++)
         {
             inbuf[i] = (i < n_frames) ? (input[i] * coef * 0.2f): 0.0f;
         }
@@ -541,7 +541,7 @@ run(LV2_Handle instance,
     if (self->ir_loaded) {
 
         //complex multiplication
-        for(m = 0; m < SIZE; m++)
+        for(m = 0; m < MAX_FFT_SIZE; m++)
         {
             if (m < ((n_frames / 2) * multiplier))
             {
@@ -562,31 +562,31 @@ run(LV2_Handle instance,
         //normalize output with overlap add.
         if(n_frames == 256)
         {
-            for ( j = 0; j < SIZE; j++)
+            for ( j = 0; j < MAX_FFT_SIZE; j++)
             {
                 if(j < n_frames)
                 {
-                    output[j] = ((outbuf[j] / (float)(SIZE)) + overlap[j]);
+                    output[j] = ((outbuf[j] / (float)(MAX_FFT_SIZE)) + overlap[j]);
                 }
                 else
                 {
-                    overlap[j - n_frames] = outbuf[j]  / (float)(SIZE);
+                    overlap[j - n_frames] = outbuf[j]  / (float)(MAX_FFT_SIZE);
                 }
             }
         }
         else if (n_frames == 128)      //HIER VERDER GAAN!!!!!! oA, oB, oC changed malloc to calloc. (initiate buffer with all zeroes)
         {
-            for ( j = 0; j < SIZE; j++)
+            for ( j = 0; j < MAX_FFT_SIZE; j++)
             {
                 if(j < n_frames)   //runs 128 times filling the output buffer with overap add
                 {
-                    output[j] = (outbuf[j] / (float)(SIZE) + oA[j] + oB[j] + oC[j]);
+                    output[j] = (outbuf[j] / (float)(MAX_FFT_SIZE) + oA[j] + oB[j] + oC[j]);
                 }
                 else
                 {
                     oC[j - n_frames] = oB[j]; // 128 samples of usefull data
                     oB[j - n_frames] = oA[j];  //filled with samples 128 to 255 of usefull data
-                    oA[j - n_frames] = (outbuf[j] / (float)(SIZE)); //filled with 384 samples
+                    oA[j - n_frames] = (outbuf[j] / (float)(MAX_FFT_SIZE)); //filled with 384 samples
                 }
             }
         }
