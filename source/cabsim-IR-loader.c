@@ -401,6 +401,7 @@ instantiate(const LV2_Descriptor*     descriptor,
 
     self->init_cabsim = false;
     self->new_ir = false;
+    self->ir_loaded = false;
 
     return (LV2_Handle)self;
 
@@ -510,7 +511,7 @@ run(LV2_Handle instance,
     //copy inputbuffer and IR buffer with zero padding.
     if(self->new_ir)
     {
-        for ( i = 0; i < n_frames * multiplier; i++)
+        for ( i = 0; i < SIZE; i++)
         {
             inbuf[i] = (i < n_frames) ? (input[i] * coef * 0.2f): 0.0f;
             IR[i] = (i < n_frames && i < self->ir->info.frames) ? self->ir->data[i] : 0.0f;
@@ -529,7 +530,7 @@ run(LV2_Handle instance,
     }
     else
     {
-        for ( i = 0; i < n_frames * multiplier; i++)
+        for ( i = 0; i < SIZE; i++)
         {
             inbuf[i] = (i < n_frames) ? (input[i] * coef * 0.2f): 0.0f;
         }
@@ -540,12 +541,20 @@ run(LV2_Handle instance,
     if (self->ir_loaded) {
 
         //complex multiplication
-        for(m = 0; m < ((n_frames / 2) * multiplier) ;m++)
+        for(m = 0; m < SIZE; m++)
         {
-            //real component
-            self->convolved[m][REAL] = self->outComplex[m][REAL] * self->IRout[m][REAL] - self->outComplex[m][IMAG] * self->IRout[m][IMAG];
-            //imaginary component
-            self->convolved[m][IMAG] = self->outComplex[m][REAL] * self->IRout[m][IMAG] + self->outComplex[m][IMAG] * self->IRout[m][REAL];
+            if (m < ((n_frames / 2) * multiplier))
+            {
+                //real component
+                self->convolved[m][REAL] = self->outComplex[m][REAL] * self->IRout[m][REAL] - self->outComplex[m][IMAG] * self->IRout[m][IMAG];
+                //imaginary component
+                self->convolved[m][IMAG] = self->outComplex[m][REAL] * self->IRout[m][IMAG] + self->outComplex[m][IMAG] * self->IRout[m][REAL];
+            }
+            else
+            {
+                self->convolved[m][REAL] = 0.0f;
+                self->convolved[m][IMAG] = 0.0f;
+            }
         }
 
         fftwf_execute(self->ifft);
@@ -553,31 +562,31 @@ run(LV2_Handle instance,
         //normalize output with overlap add.
         if(n_frames == 256)
         {
-            for ( j = 0; j < n_frames * multiplier; j++)
+            for ( j = 0; j < SIZE; j++)
             {
                 if(j < n_frames)
                 {
-                    output[j] = ((outbuf[j] / (n_frames * multiplier)) + overlap[j]);
+                    output[j] = ((outbuf[j] / (float)(SIZE)) + overlap[j]);
                 }
                 else
                 {
-                    overlap[j - n_frames] = outbuf[j]  / (n_frames * multiplier);
+                    overlap[j - n_frames] = outbuf[j]  / (float)(SIZE);
                 }
             }
         }
         else if (n_frames == 128)      //HIER VERDER GAAN!!!!!! oA, oB, oC changed malloc to calloc. (initiate buffer with all zeroes)
         {
-            for ( j = 0; j < n_frames * multiplier; j++)
+            for ( j = 0; j < SIZE; j++)
             {
                 if(j < n_frames)   //runs 128 times filling the output buffer with overap add
                 {
-                    output[j] = (outbuf[j] / (n_frames * multiplier) + oA[j] + oB[j] + oC[j]);
+                    output[j] = (outbuf[j] / (float)(SIZE) + oA[j] + oB[j] + oC[j]);
                 }
                 else
                 {
                     oC[j - n_frames] = oB[j]; // 128 samples of usefull data
                     oB[j - n_frames] = oA[j];  //filled with samples 128 to 255 of usefull data
-                    oA[j - n_frames] = (outbuf[j] / (n_frames * multiplier)); //filled with 384 samples
+                    oA[j - n_frames] = (outbuf[j] / (float)(SIZE)); //filled with 384 samples
                 }
             }
         }
