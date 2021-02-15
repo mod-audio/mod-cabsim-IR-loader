@@ -164,7 +164,6 @@
 .mod-cabinet{{{cns}}} .mod-enumerated {
     color: #000;
     display: inline-block;
-    overflow: hidden;
     width: 100%;
     cursor: pointer
 }
@@ -179,6 +178,10 @@
     margin-right: 8px;
     overflow: hidden;
     padding: 0 9px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    width: 100%;
 }
 
 /* WHEN IS HOVER */
@@ -191,11 +194,11 @@
     background: rgba(255,255,255,.85);
     display: none;
     font-weight: bold;
-    height: 69px;
+    height: 219px;
     overflow: auto;
     position: relative;
     position: absolute;
-    width: 200px;
+    width: 388px;
     z-index: 3;
 }
 
