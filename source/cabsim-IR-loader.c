@@ -650,10 +650,16 @@ restore(LV2_Handle                  instance,
 
     if (value) {
         const char* path = (const char*)value;
-        lv2_log_trace(&self->logger, "Restoring file %s\n", path);
-        free_ir(self, self->ir);
-        self->ir = load_ir(self, path);
-        self->new_ir = true;
+        ImpulseResponse *ir = load_ir(self, path);
+        if (ir) {
+            lv2_log_trace(&self->logger, "Restoring file %s\n", path);
+            free_ir(self, self->ir);
+            self->ir = ir;
+            self->new_ir = true;
+        } else {
+            lv2_log_error(&self->logger, "File %s couldn't be loaded\n", path);
+            return LV2_STATE_ERR_UNKNOWN;
+        }
     }
 
     return LV2_STATE_SUCCESS;
