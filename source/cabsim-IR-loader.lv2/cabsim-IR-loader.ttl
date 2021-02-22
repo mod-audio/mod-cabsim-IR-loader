@@ -23,10 +23,15 @@
 doap:license "GPL";
 
 rdfs:comment """
-A cabinet simulator that loads IR files.
+A cabinet simulator plugin that loads impulse response (IR) files.
+
+In order for your personal IR files to show up in the list of available files for this plugin, please place the files in the “Speaker Cabinet IRs” folder of your device.
+
+This plugin is specifically created for handling speaker cabinet IRs, this plugin is not optimized for handling larger files like reverb IRs.
 
 Features:
 Plugin by MOD Devices
+Default IR file by forward audio
 """;
 
 doap:developer [
