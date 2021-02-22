@@ -38,13 +38,16 @@ doap:developer [
 	foaf:name "Jarno Verheesen & Bram Giesen";
 	foaf:homepage <>;
 	foaf:mbox <mailto:bram@moddevices.com>;
-    ];
+	];
 
 doap:maintainer [
 	foaf:name "MOD";
 	foaf:homepage <http://moddevices.com>;
 	foaf:mbox <mailto:bram@moddevices.com>;
 	];
+
+	lv2:minorVersion 1;
+	lv2:microVersion 0;
 
 	doap:license <http://opensource.org/licenses/isc> ;
 	lv2:project <http://lv2plug.in/ns/lv2> ;
