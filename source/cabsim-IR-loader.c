@@ -170,14 +170,14 @@ Resample_f32(const float *input, float *output, int inSampleRate,
 static sf_count_t
 convert_to_mono(float *data, sf_count_t num_input_frames, uint32_t channels)
 {
-	sf_count_t mono_index = 0;
-	for (sf_count_t i = 0; i < num_input_frames * channels; i+=channels) {
-		data[mono_index++] = data[i];
-	}
+    sf_count_t mono_index = 0;
+    for (sf_count_t i = 0; i < num_input_frames * channels; i+=channels) {
+        data[mono_index++] = data[i];
+    }
 
-	sf_count_t num_output_frames = mono_index;
+    sf_count_t num_output_frames = mono_index;
 
-	return num_output_frames;
+    return num_output_frames;
 }
 
 /**
@@ -217,7 +217,7 @@ load_ir(Cabsim* self, const char* path)
     //When IR has multiple channels, only use first channel
     if (info->channels != 1) {
         info->frames = convert_to_mono(data, info->frames, info->channels);
-		info->channels = 1;
+        info->channels = 1;
     }
 
     //apply samplerate conversion if needed
