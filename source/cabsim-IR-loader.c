@@ -167,17 +167,17 @@ Resample_f32(const float *input, float *output, int inSampleRate,
     return outputSize;
 }
 
-static uint64_t
-convert_to_mono(float *input, uint64_t inputSize, uint32_t channels)
+static sf_count_t
+convert_to_mono(float *data, sf_count_t num_input_frames, uint32_t channels)
 {
-    uint64_t mono_index = 0;
-    for (uint64_t i = 0; i < inputSize; i+=channels) {
-        input[mono_index++] = input[i];
-    }
+	sf_count_t mono_index = 0;
+	for (sf_count_t i = 0; i < num_input_frames * channels; i+=channels) {
+		data[mono_index++] = data[i];
+	}
 
-    uint64_t outputSize = mono_index;
+	sf_count_t num_output_frames = mono_index;
 
-    return outputSize;
+	return num_output_frames;
 }
 
 /**
@@ -205,18 +205,19 @@ load_ir(Cabsim* self, const char* path)
     }
 
     // Read data
-    float* const data = malloc(sizeof(float) * info->frames);
+    float* const data = malloc(sizeof(float) * (info->frames * info->channels));
     if (!data) {
         lv2_log_error(&self->logger, "Failed to allocate memory for ir\n");
         return NULL;
     }
     sf_seek(sndfile, 0ul, SEEK_SET);
-    sf_read_float(sndfile, data, info->frames);
+    sf_read_float(sndfile, data, info->frames * info->channels);
     sf_close(sndfile);
 
     //When IR has multiple channels, only use first channel
-    if (info->frames != 1) {
+    if (info->channels != 1) {
         info->frames = convert_to_mono(data, info->frames, info->channels);
+		info->channels = 1;
     }
 
     //apply samplerate conversion if needed
