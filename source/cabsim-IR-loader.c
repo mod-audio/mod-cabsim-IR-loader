@@ -53,10 +53,13 @@
 #define REAL 0
 #define IMAG 1
 
-#define MAX_FFT_SIZE 512
+#define MAX_FFT_SIZE 2048
 
 //macro for Volume in DB to a coefficient
 #define DB_CO(g) ((g) > -90.0f ? powf(10.0f, (g) * 0.05f) : 0.0f)
+
+#define MAX_OVERLAP_BUFFERS     8
+//OVERLAP_BUFFERS should be: MAX_FFT_SIZE / n_frames, but to cpu heavy
 
 enum {
     CABSIM_CONTROL = 0,
@@ -118,10 +121,9 @@ typedef struct {
     float *outbuf;
     float *inbuf;
     float *IR;
-    float *overlap;
-    float *oA;
-    float *oB;
-    float *oC;
+    float *overlap[MAX_OVERLAP_BUFFERS];
+    int overlap_add_buffers;
+    uint32_t prev_buffer_size;
     const float *attenuation;
 
     fftwf_complex *outComplex;
@@ -387,22 +389,47 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->outComplex = (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*(MAX_FFT_SIZE));
     self->IRout =  (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*(MAX_FFT_SIZE));
     self->convolved =  (fftwf_complex*) fftwf_malloc(sizeof(fftwf_complex)*(MAX_FFT_SIZE));
-
-    self->overlap = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
     self->outbuf = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
     self->inbuf = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
     self->IR = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
-    self->oA = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
-    self->oB = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
-    self->oC = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
 
-    self->fft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->inbuf, self->outComplex, FFTW_ESTIMATE);
-    self->IRfft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->IR, self->IRout, FFTW_ESTIMATE);
-    self->ifft = fftwf_plan_dft_c2r_1d(MAX_FFT_SIZE, self->convolved, self->outbuf, FFTW_ESTIMATE);
+    for (int overlap_counter = 0; overlap_counter < MAX_OVERLAP_BUFFERS; overlap_counter++) {
+        self->overlap[overlap_counter] = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
+    }
 
+    const char* wisdomFile = "cabsim.wisdom";
+
+    //open file A
+    const size_t path_len    = strlen(path);
+    const size_t file_len    = strlen(wisdomFile);
+
+    const size_t len         = path_len + file_len;
+    char*        wisdom_path = (char*)malloc(len + 1);
+    snprintf(wisdom_path, len + 1, "%s%s", path, wisdomFile);
+
+    lv2_log_note(&self->logger,"wisdom path = %s\n", wisdom_path);
+
+    if (fftwf_import_wisdom_from_filename(wisdom_path) != 0)
+    {
+        self->fft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->inbuf, self->outComplex, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
+        self->IRfft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->IR, self->IRout, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
+        self->ifft = fftwf_plan_dft_c2r_1d(MAX_FFT_SIZE, self->convolved, self->outbuf, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
+        lv2_log_note(&self->logger, "Wisdom_files_loaded %s\n", wisdomFile);
+    } else {
+        self->fft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->inbuf, self->outComplex, FFTW_ESTIMATE);
+        self->IRfft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->IR, self->IRout, FFTW_ESTIMATE);
+        self->ifft = fftwf_plan_dft_c2r_1d(MAX_FFT_SIZE, self->convolved, self->outbuf, FFTW_ESTIMATE);
+        lv2_log_warning(&self->logger, "failed to import wisdom file '%s', using estimate instead\n", wisdom_path);
+    }
+
+    self->overlap_add_buffers = 2;
     self->init_cabsim = false;
     self->new_ir = false;
     self->ir_loaded = false;
+    self->prev_buffer_size = 999;
+
+    for (int i = 0; i < MAX_FFT_SIZE; i++)
+        self->inbuf[i] = 0.0f;
 
     return (LV2_Handle)self;
 
@@ -434,11 +461,6 @@ run(LV2_Handle instance,
     float *outbuf  = self->outbuf;
     float *inbuf   = self->inbuf;
     float *IR      = self->IR;
-    float *overlap = self->overlap;
-    float *oA      = self->oA;
-    float *oB      = self->oB;
-    float *oC      = self->oC;
-
 
     // Set up forge to write directly to notify output port.
     const uint32_t notify_capacity = self->notify_port->atom.size;
@@ -498,25 +520,35 @@ run(LV2_Handle instance,
 
     uint32_t i, j, m;
 
-    int multiplier = 0;
+    if (n_frames != self->prev_buffer_size) {
+        switch (n_frames) {
+            case 64:
+                self->overlap_add_buffers = 8;
+            break;
+            case 128:
+                self->overlap_add_buffers = 4;
+            break;
+            case 256:
+                self->overlap_add_buffers = 4;
+            break;
+            case 512:
+                self->overlap_add_buffers = 4;
+            break;
+            default:
+                lv2_log_warning(&self->logger, "Non standard buffer size: '%i'. alliasing may happen\n", n_frames);
 
-    if(n_frames == 128)
-    {
-        multiplier = 4;
-    }
-    else if (n_frames == 256)
-    {
-        multiplier = 2;
+                self->overlap_add_buffers = 4;
+            break;
+        }
+
+        self->prev_buffer_size = n_frames;
     }
 
     //copy inputbuffer and IR buffer with zero padding.
     if(self->new_ir)
     {
         for ( i = 0; i < MAX_FFT_SIZE; i++)
-        {
-            inbuf[i] = (i < n_frames) ? (input[i] * coef * 0.2f): 0.0f;
-            IR[i] = (i < n_frames && i < self->ir->info.frames) ? self->ir->data[i] : 0.0f;
-        }
+            IR[i] = (i < self->ir->info.frames) ? self->ir->data[i] : 0.0f;
 
         fftwf_execute(self->IRfft);
 
@@ -529,67 +561,41 @@ run(LV2_Handle instance,
         self->new_ir = false;
         self->ir_loaded = true;
     }
-    else
-    {
-        for ( i = 0; i < MAX_FFT_SIZE; i++)
-        {
-            inbuf[i] = (i < n_frames) ? (input[i] * coef * 0.2f): 0.0f;
-        }
-    }
+
+    for ( i = 0; i < n_frames; i++)
+        inbuf[i] = input[i] * coef * 0.2f;
+
 
     fftwf_execute(self->fft);
 
     if (self->ir_loaded) {
 
         //complex multiplication
-        for(m = 0; m < MAX_FFT_SIZE; m++)
-        {
-            if (m < ((n_frames / 2) * multiplier))
-            {
-                //real component
-                self->convolved[m][REAL] = self->outComplex[m][REAL] * self->IRout[m][REAL] - self->outComplex[m][IMAG] * self->IRout[m][IMAG];
-                //imaginary component
-                self->convolved[m][IMAG] = self->outComplex[m][REAL] * self->IRout[m][IMAG] + self->outComplex[m][IMAG] * self->IRout[m][REAL];
-            }
-            else
-            {
-                self->convolved[m][REAL] = 0.0f;
-                self->convolved[m][IMAG] = 0.0f;
-            }
+        for(m = 0; m < MAX_FFT_SIZE/2; m++) {
+            self->convolved[m][REAL] = self->outComplex[m][REAL] * self->IRout[m][REAL] - self->outComplex[m][IMAG] * self->IRout[m][IMAG];
+            self->convolved[m][IMAG] = self->outComplex[m][REAL] * self->IRout[m][IMAG] + self->outComplex[m][IMAG] * self->IRout[m][REAL];
+        }
+        for(; m < MAX_FFT_SIZE; m++) {
+            self->convolved[m][REAL] = 0.0f;
+            self->convolved[m][IMAG] = 0.0f;
         }
 
         fftwf_execute(self->ifft);
 
         //normalize output with overlap add.
-        if(n_frames == 256)
-        {
-            for ( j = 0; j < MAX_FFT_SIZE; j++)
-            {
-                if(j < n_frames)
-                {
-                    output[j] = ((outbuf[j] / (float)(MAX_FFT_SIZE)) + overlap[j]);
-                }
-                else
-                {
-                    overlap[j - n_frames] = outbuf[j]  / (float)(MAX_FFT_SIZE);
-                }
-            }
+        for (j = 0; j < n_frames; j++) {
+            float overlap_value = 0.0f;
+
+            for (uint8_t q = 0; q < self->overlap_add_buffers; q++)
+                overlap_value += self->overlap[q][j];
+
+            output[j] = ((outbuf[j] / MAX_FFT_SIZE) + overlap_value);
         }
-        else if (n_frames == 128)      //HIER VERDER GAAN!!!!!! oA, oB, oC changed malloc to calloc. (initiate buffer with all zeroes)
-        {
-            for ( j = 0; j < MAX_FFT_SIZE; j++)
-            {
-                if(j < n_frames)   //runs 128 times filling the output buffer with overap add
-                {
-                    output[j] = (outbuf[j] / (float)(MAX_FFT_SIZE) + oA[j] + oB[j] + oC[j]);
-                }
-                else
-                {
-                    oC[j - n_frames] = oB[j]; // 128 samples of usefull data
-                    oB[j - n_frames] = oA[j];  //filled with samples 128 to 255 of usefull data
-                    oA[j - n_frames] = (outbuf[j] / (float)(MAX_FFT_SIZE)); //filled with 384 samples
-                }
-            }
+        for (; j < MAX_FFT_SIZE; j++) {
+            for (uint8_t q = self->overlap_add_buffers - 1; q > 0; q--)
+                self->overlap[q][j - n_frames] = self->overlap[q-1][j];
+
+            self->overlap[0][j - n_frames] = outbuf[j] / MAX_FFT_SIZE;
         }
     } else {
         memset(output, 0, sizeof(float)*n_frames);
