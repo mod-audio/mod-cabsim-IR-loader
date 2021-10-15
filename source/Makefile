@@ -23,7 +23,7 @@ build: $(NAME)-build
 
 $(NAME)-build: $(NAME).lv2/$(NAME)$(LIB_EXT)
 
-$(NAME).lv2/$(NAME)$(LIB_EXT): $(NAME).c
+$(NAME).lv2/$(NAME)$(LIB_EXT): $(NAME).c circular_buffer.c
 	$(CC) $^ $(BUILD_C_FLAGS) $(LINK_FLAGS) -lm $(SHARED) -o $@
 
 # --------------------------------------------------------------

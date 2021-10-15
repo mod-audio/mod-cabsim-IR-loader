@@ -48,7 +48,7 @@
 #include "lv2/lv2plug.in/ns/lv2core/lv2.h"
 
 #include "./uris.h"
-
+#include "./circular_buffer.h"
 
 #define REAL 0
 #define IMAG 1
@@ -57,9 +57,6 @@
 
 //macro for Volume in DB to a coefficient
 #define DB_CO(g) ((g) > -90.0f ? powf(10.0f, (g) * 0.05f) : 0.0f)
-
-#define MAX_OVERLAP_BUFFERS     8
-//OVERLAP_BUFFERS should be: MAX_FFT_SIZE / n_frames, but to cpu heavy
 
 enum {
     CABSIM_CONTROL = 0,
@@ -121,8 +118,7 @@ typedef struct {
     float *outbuf;
     float *inbuf;
     float *IR;
-    float *overlap[MAX_OVERLAP_BUFFERS];
-    int overlap_add_buffers;
+
     uint32_t prev_buffer_size;
     const float *attenuation;
 
@@ -134,8 +130,10 @@ typedef struct {
     fftwf_plan ifft;
     fftwf_plan IRfft;
 
-    bool init_cabsim;
+    int overlap_add_buffers;
+    ringbuffer_t overlap_buffer;
 
+    bool init_cabsim;
 } Cabsim;
 
 typedef struct {
@@ -393,10 +391,6 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->inbuf = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
     self->IR = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
 
-    for (int overlap_counter = 0; overlap_counter < MAX_OVERLAP_BUFFERS; overlap_counter++) {
-        self->overlap[overlap_counter] = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
-    }
-
     const char* wisdomFile = "cabsim.wisdom";
 
     //open file A
@@ -422,7 +416,6 @@ instantiate(const LV2_Descriptor*     descriptor,
         lv2_log_warning(&self->logger, "failed to import wisdom file '%s', using estimate instead\n", wisdom_path);
     }
 
-    self->overlap_add_buffers = 2;
     self->init_cabsim = false;
     self->new_ir = false;
     self->ir_loaded = false;
@@ -523,13 +516,13 @@ run(LV2_Handle instance,
     if (n_frames != self->prev_buffer_size) {
         switch (n_frames) {
             case 64:
-                self->overlap_add_buffers = 8;
+                self->overlap_add_buffers = 32;
             break;
             case 128:
-                self->overlap_add_buffers = 4;
+                self->overlap_add_buffers = 16;
             break;
             case 256:
-                self->overlap_add_buffers = 4;
+                self->overlap_add_buffers = 8;
             break;
             case 512:
                 self->overlap_add_buffers = 4;
@@ -537,11 +530,14 @@ run(LV2_Handle instance,
             default:
                 lv2_log_warning(&self->logger, "Non standard buffer size: '%i'. alliasing may happen\n", n_frames);
 
-                self->overlap_add_buffers = 4;
+                self->overlap_add_buffers = 16;
             break;
         }
 
         self->prev_buffer_size = n_frames;
+
+        //reset ringbuffer
+        ringbuffer_clear(&self->overlap_buffer, self->overlap_add_buffers * MAX_FFT_SIZE);
     }
 
     //copy inputbuffer and IR buffer with zero padding.
@@ -582,20 +578,19 @@ run(LV2_Handle instance,
 
         fftwf_execute(self->ifft);
 
+        for (j = 0; j < MAX_FFT_SIZE; j++) {
+            ringbuffer_push_sample(&self->overlap_buffer , outbuf[j] / MAX_FFT_SIZE);
+        }
+
         //normalize output with overlap add.
         for (j = 0; j < n_frames; j++) {
             float overlap_value = 0.0f;
 
-            for (uint8_t q = 0; q < self->overlap_add_buffers; q++)
-                overlap_value += self->overlap[q][j];
+            for (int x = 0; x < self->overlap_add_buffers-1; x++) {
+                overlap_value += ringbuffer_get_relative_val(&self->overlap_buffer, (x * MAX_FFT_SIZE) + ((self->overlap_add_buffers - x - 1) * n_frames) + j + 1);
+            }
 
             output[j] = ((outbuf[j] / MAX_FFT_SIZE) + overlap_value);
-        }
-        for (; j < MAX_FFT_SIZE; j++) {
-            for (uint8_t q = self->overlap_add_buffers - 1; q > 0; q--)
-                self->overlap[q][j - n_frames] = self->overlap[q-1][j];
-
-            self->overlap[0][j - n_frames] = outbuf[j] / MAX_FFT_SIZE;
         }
     } else {
         memset(output, 0, sizeof(float)*n_frames);
