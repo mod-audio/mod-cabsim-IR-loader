@@ -537,14 +537,24 @@ run(LV2_Handle instance,
         self->prev_buffer_size = n_frames;
 
         //reset ringbuffer
+        //max ringbuffer size is defined in ringbuffer.h, it should always be > max_overlap_add_buffers * MAX_FFT_SZIE
         ringbuffer_clear(&self->overlap_buffer, self->overlap_add_buffers * MAX_FFT_SIZE);
+
+        for (int i = 0; i < MAX_FFT_SIZE; i++) {
+            self->outbuf[i] = 0.0f;
+            self->inbuf[i] = 0.0f;
+        }
     }
 
     //copy inputbuffer and IR buffer with zero padding.
     if(self->new_ir)
     {
-        for ( i = 0; i < MAX_FFT_SIZE; i++)
-            IR[i] = (i < self->ir->info.frames) ? self->ir->data[i] : 0.0f;
+        for ( i = 0; i < MAX_FFT_SIZE; i++) {
+            if ((i < MAX_FFT_SIZE/2) && (i < self->ir->info.frames))
+                IR[i] = self->ir->data[i];
+            else
+                IR[i] = 0.0f;
+        }
 
         fftwf_execute(self->IRfft);
 
@@ -556,11 +566,17 @@ run(LV2_Handle instance,
 
         self->new_ir = false;
         self->ir_loaded = true;
+
+        ringbuffer_clear(&self->overlap_buffer, self->overlap_add_buffers * MAX_FFT_SIZE);
+
+        for (int i = 0; i < MAX_FFT_SIZE; i++) {
+            self->outbuf[i] = 0.0f;
+            self->inbuf[i] = 0.0f;
+        }
     }
 
     for ( i = 0; i < n_frames; i++)
         inbuf[i] = input[i] * coef * 0.2f;
-
 
     fftwf_execute(self->fft);
 
@@ -578,17 +594,15 @@ run(LV2_Handle instance,
 
         fftwf_execute(self->ifft);
 
-        for (j = 0; j < MAX_FFT_SIZE; j++) {
+        for (j = 0; j < MAX_FFT_SIZE; j++)
             ringbuffer_push_sample(&self->overlap_buffer , outbuf[j] / MAX_FFT_SIZE);
-        }
 
         //normalize output with overlap add.
         for (j = 0; j < n_frames; j++) {
             float overlap_value = 0.0f;
 
-            for (int x = 0; x < self->overlap_add_buffers-1; x++) {
-                overlap_value += ringbuffer_get_relative_val(&self->overlap_buffer, (x * MAX_FFT_SIZE) + ((self->overlap_add_buffers - x - 1) * n_frames) + j + 1);
-            }
+            for (uint8_t Oa = 0; Oa < self->overlap_add_buffers-1; Oa++)
+                overlap_value += ringbuffer_get_relative_val(&self->overlap_buffer, (Oa * MAX_FFT_SIZE) + ((self->overlap_add_buffers - Oa - 1) * n_frames) + j + 1);
 
             output[j] = ((outbuf[j] / MAX_FFT_SIZE) + overlap_value);
         }
