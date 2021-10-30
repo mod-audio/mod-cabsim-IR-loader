@@ -19,9 +19,9 @@
 
 <http://moddevices.com/plugins/mod-devel/cabsim-IR-loader>
 	a lv2:Plugin, lv2:SimulatorPlugin;
-	doap:name "IR loader cabsim" ;
-	lv2:requiredFeature lv2:hardRTCapable ,
-                        bsize:powerOf2BlockLength;
+	doap:name "IR loader cabsim";
+	lv2:optionalFeature lv2:hardRTCapable;
+	lv2:requiredFeature bsize:powerOf2BlockLength;
 
 doap:license "GPL";
 
