@@ -194,7 +194,7 @@ load_ir(Cabsim* self, const char* path)
 
     lv2_log_trace(&self->logger, "Loading ir %s\n", path);
 
-    ImpulseResponse* const  ir  = (ImpulseResponse*)malloc(sizeof(ImpulseResponse));
+    ImpulseResponse* const  ir  = (ImpulseResponse*)calloc(1, sizeof(ImpulseResponse));
     SF_INFO* const info    = &ir->info;
     SNDFILE* const sndfile = sf_open(path, SFM_READ, info);
 
@@ -354,11 +354,10 @@ instantiate(const LV2_Descriptor*     descriptor,
             const LV2_Feature* const* features)
 {
     // Allocate and initialise instance structure.
-    Cabsim* self = (Cabsim*)malloc(sizeof(Cabsim));
+    Cabsim* self = (Cabsim*)calloc(1, sizeof(Cabsim));
     if (!self) {
         return NULL;
     }
-    memset(self, 0, sizeof(Cabsim));
 
     self->samplerate = rate;
     // Get host features
@@ -419,7 +418,7 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->init_cabsim = false;
     self->new_ir = false;
     self->ir_loaded = false;
-    self->prev_buffer_size = 999;
+    self->prev_buffer_size = UINT32_MAX;
 
     for (int i = 0; i < MAX_FFT_SIZE; i++)
         self->inbuf[i] = 0.0f;
@@ -435,6 +434,16 @@ static void
 cleanup(LV2_Handle instance)
 {
     Cabsim* self = (Cabsim*)instance;
+
+    fftwf_destroy_plan(self->fft);
+    fftwf_destroy_plan(self->IRfft);
+    fftwf_destroy_plan(self->ifft);
+    fftwf_free(self->outComplex);
+    fftwf_free(self->IRout);
+    fftwf_free(self->convolved);
+    free(self->outbuf);
+    free(self->inbuf);
+    free(self->IR);
     free_ir(self, self->ir);
     free(self);
 }
@@ -454,6 +463,12 @@ run(LV2_Handle instance,
     float *outbuf  = self->outbuf;
     float *inbuf   = self->inbuf;
     float *IR      = self->IR;
+
+    if (n_frames > MAX_FFT_SIZE) {
+        // unsupported
+        memset(output, 0, sizeof(float)*n_frames);
+        return;
+    }
 
     // Set up forge to write directly to notify output port.
     const uint32_t notify_capacity = self->notify_port->atom.size;
