@@ -6,11 +6,7 @@ include Makefile.mk
 
 NAME = cabsim-IR-loader
 
-# --------------------------------------------------------------
-# Installation path
-
-INSTALL_PATH = /usr/local/lib/lv2
-COMPLETE_INSTALL_PATH = $(DESTDIR)$(INSTALL_PATH)/$(NAME).lv2
+PREFIX ?= /usr/local
 
 # --------------------------------------------------------------
 # Default target is to build all plugins
