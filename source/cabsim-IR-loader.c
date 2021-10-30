@@ -188,18 +188,20 @@ convert_to_mono(float *data, sf_count_t num_input_frames, uint32_t channels)
    not modified.
 */
 static ImpulseResponse*
-load_ir(Cabsim* self, const char* path)
+load_ir(Cabsim* self, const char* path, uint32_t path_len)
 {
-    const size_t path_len = strlen(path);
+    char* irpath = (char*)malloc(path_len + 1);
+    memcpy(irpath, path, path_len);
+    irpath[path_len] = 0;
 
-    lv2_log_trace(&self->logger, "Loading ir %s\n", path);
+    lv2_log_trace(&self->logger, "Loading ir %s\n", irpath);
 
     ImpulseResponse* const  ir  = (ImpulseResponse*)calloc(1, sizeof(ImpulseResponse));
     SF_INFO* const info    = &ir->info;
-    SNDFILE* const sndfile = sf_open(path, SFM_READ, info);
+    SNDFILE* const sndfile = sf_open(irpath, SFM_READ, info);
 
     if (!sndfile || !info->frames) {
-        lv2_log_error(&self->logger, "Failed to open ir '%s'\n", path);
+        lv2_log_error(&self->logger, "Failed to open ir '%s'\n", irpath);
         free(ir);
         return NULL;
     }
@@ -232,10 +234,8 @@ load_ir(Cabsim* self, const char* path)
     }
 
     // Fill ir struct and return it
-    ir->path     = (char*)malloc(path_len + 1);
-    ir->path_len = (uint32_t)path_len;
-    memcpy(ir->path, path, path_len + 1);
-
+    ir->path     = irpath;
+    ir->path_len = path_len;
     return ir;
 }
 
@@ -281,7 +281,7 @@ work(LV2_Handle                  instance,
         }
 
         // Load ir.
-        ImpulseResponse* ir = load_ir(self, LV2_ATOM_BODY_CONST(file_path));
+        ImpulseResponse* ir = load_ir(self, LV2_ATOM_BODY_CONST(file_path), file_path->size);
         if (ir) {
             // Loaded ir, send it to run() to be applied.
             respond(handle, sizeof(ir), &ir);
@@ -681,7 +681,7 @@ restore(LV2_Handle                  instance,
 
     if (value) {
         const char* path = (const char*)value;
-        ImpulseResponse *ir = load_ir(self, path);
+        ImpulseResponse *ir = load_ir(self, path, size);
         if (ir) {
             lv2_log_trace(&self->logger, "Restoring file %s\n", path);
             free_ir(self, self->ir);
