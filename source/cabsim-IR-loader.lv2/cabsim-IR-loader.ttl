@@ -9,6 +9,7 @@
 @prefix param: <http://lv2plug.in/ns/ext/parameters#> .
 @prefix foaf: <http://xmlns.com/foaf/0.1/>.
 @prefix mod: <http://moddevices.com/ns/mod#>.
+@prefix bsize:  <http://lv2plug.in/ns/ext/buf-size#>.
 
 <http://moddevices.com/plugins/mod-devel/cabsim-IR-loader#ir>
 	a lv2:Parameter ;
@@ -18,7 +19,9 @@
 
 <http://moddevices.com/plugins/mod-devel/cabsim-IR-loader>
 	a lv2:Plugin, lv2:SimulatorPlugin;
-	doap:name "IR loader cabsim" ;
+	doap:name "IR loader cabsim";
+	lv2:optionalFeature lv2:hardRTCapable;
+	lv2:requiredFeature bsize:powerOf2BlockLength;
 
 doap:license "GPL";
 
@@ -29,7 +32,7 @@ In order for your personal IR files to show up in the list of available files fo
 
 This plugin is specifically created for handling speaker cabinet IRs, this plugin is not optimized for handling larger files like reverb IRs.
 
-Currently it only uses the first 2.667ms of the loaded IR file.
+Currently it only uses the first 21.3ms of the loaded IR file.
 It is recommended to trim any silence at the start of the IR file for optimal results.
 
 Features:

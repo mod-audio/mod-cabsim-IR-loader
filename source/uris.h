@@ -86,7 +86,7 @@ write_set_file(LV2_Atom_Forge*    forge,
 	lv2_atom_forge_key(forge, uris->patch_property);
 	lv2_atom_forge_urid(forge, uris->cab_ir);
 	lv2_atom_forge_key(forge, uris->patch_value);
-	lv2_atom_forge_path(forge, filename, filename_len);
+	lv2_atom_forge_path(forge, filename, filename_len + 1);
 
 	lv2_atom_forge_pop(forge, &frame);
 
