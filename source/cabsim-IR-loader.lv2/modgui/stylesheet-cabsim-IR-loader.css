@@ -1,9 +1,9 @@
 /* SKINS */
 .mod-cabinet{{{cns}}} {
     font-family: 'Cooper Hewitt', Helvetica,Arial,Sans-serif;
-    height: auto;
     position: relative;
-    width: auto;
+    width: 374px;
+    height: 585px;
 }
 
 /* CABINET FACE */
