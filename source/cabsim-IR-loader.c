@@ -402,17 +402,24 @@ instantiate(const LV2_Descriptor*     descriptor,
 
     lv2_log_note(&self->logger,"wisdom path = %s\n", wisdom_path);
 
-    if (fftwf_import_wisdom_from_filename(wisdom_path) != 0)
+    if (fftwf_import_system_wisdom() != 0)
     {
         self->fft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->inbuf, self->outComplex, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
         self->IRfft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->IR, self->IRout, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
         self->ifft = fftwf_plan_dft_c2r_1d(MAX_FFT_SIZE, self->convolved, self->outbuf, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
-        lv2_log_note(&self->logger, "Wisdom_files_loaded %s\n", wisdomFile);
+        lv2_log_note(&self->logger, "Wisdom file loaded from system\n");
+    }
+    else if (fftwf_import_wisdom_from_filename(wisdom_path) != 0)
+    {
+        self->fft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->inbuf, self->outComplex, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
+        self->IRfft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->IR, self->IRout, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
+        self->ifft = fftwf_plan_dft_c2r_1d(MAX_FFT_SIZE, self->convolved, self->outbuf, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
+        lv2_log_note(&self->logger, "Wisdom file loaded from plugin\n");
     } else {
         self->fft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->inbuf, self->outComplex, FFTW_ESTIMATE);
         self->IRfft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->IR, self->IRout, FFTW_ESTIMATE);
         self->ifft = fftwf_plan_dft_c2r_1d(MAX_FFT_SIZE, self->convolved, self->outbuf, FFTW_ESTIMATE);
-        lv2_log_warning(&self->logger, "failed to import wisdom file '%s', using estimate instead\n", wisdom_path);
+        lv2_log_warning(&self->logger, "failed to import system or plugin wisdom file '%s', using estimate instead\n", wisdom_path);
     }
 
     self->init_cabsim = false;
