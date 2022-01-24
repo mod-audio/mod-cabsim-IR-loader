@@ -95,7 +95,7 @@ int ringbuffer_peek_index(ringbuffer_t *buffer)
 
 float ringbuffer_push_and_calculate_power(ringbuffer_t *buffer, const float input)
 {
-    float pow = sqrt(input * input) * (1.0f / buffer->S);
+    const float pow = (float)sqrt(input * input) * (1.0f / buffer->S);
 
     if (buffer->m_size < buffer->S)
     {
