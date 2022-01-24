@@ -27,7 +27,7 @@ ifeq ($(MACOS),true)
 LINK_OPTS  = -Wl,-dead_strip -Wl,-dead_strip_dylibs -lsndfile -lfftw3 -lfftw3f -lsamplerate
 else
 # Common linker flags
-LINK_OPTS  = -Wl,-O1 -Wl,--as-needed -Wl,--strip-all -lsndfile $(shell pkg-config --libs fftw3 fftw3f) -lsamplerate
+LINK_OPTS  = -Wl,-O1 -Wl,--as-needed -Wl,--strip-all -lsndfile $(shell pkg-config --libs fftw3f) -lsamplerate
 endif
 
 ifneq ($(WIN32),true)
@@ -51,7 +51,7 @@ ifeq ($(MACOS),true)
 LINK_FLAGS      = $(LINK_OPTS) $(LDFLAGS) -lsndfile -lfftw3 -lfftw3f -lsamplerate
 else
 # add 'no-undefined'
-LINK_FLAGS      = $(LINK_OPTS) -Wl,--no-undefined $(LDFLAGS) -lsndfile $(shell pkg-config --libs fftw3 fftw3f) -lsamplerate
+LINK_FLAGS      = $(LINK_OPTS) -Wl,--no-undefined $(LDFLAGS) -lsndfile $(shell pkg-config --libs fftw3f) -lsamplerate
 endif
 
 # --------------------------------------------------------------
