@@ -132,8 +132,6 @@ typedef struct {
 
     int overlap_add_buffers;
     ringbuffer_t overlap_buffer;
-
-    bool init_cabsim;
 } Cabsim;
 
 typedef struct {
@@ -422,7 +420,6 @@ instantiate(const LV2_Descriptor*     descriptor,
         lv2_log_warning(&self->logger, "failed to import system or plugin wisdom file '%s', using estimate instead\n", wisdom_path);
     }
 
-    self->init_cabsim = false;
     self->new_ir = false;
     self->ir_loaded = false;
     self->prev_buffer_size = UINT32_MAX;
