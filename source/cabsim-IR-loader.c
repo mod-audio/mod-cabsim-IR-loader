@@ -559,21 +559,16 @@ run(LV2_Handle instance,
         //max ringbuffer size is defined in ringbuffer.h, it should always be > max_overlap_add_buffers * MAX_FFT_SZIE
         ringbuffer_clear(&self->overlap_buffer, self->overlap_add_buffers * MAX_FFT_SIZE);
 
-        for (int i = 0; i < MAX_FFT_SIZE; i++) {
-            self->outbuf[i] = 0.0f;
-            self->inbuf[i] = 0.0f;
-        }
+        memset(self->outbuf, 0, MAX_FFT_SIZE*sizeof(float));
+        memset(self->inbuf, 0, MAX_FFT_SIZE*sizeof(float));
     }
 
     //copy inputbuffer and IR buffer with zero padding.
-    if(self->new_ir)
+    if (self->new_ir)
     {
-        for ( i = 0; i < MAX_FFT_SIZE; i++) {
-            if ((i < MAX_FFT_SIZE/2) && (i < self->ir->info.frames))
-                IR[i] = self->ir->data[i];
-            else
-                IR[i] = 0.0f;
-        }
+        m = MAX_FFT_SIZE/2 < self->ir->info.frames ? MAX_FFT_SIZE/2 : self->ir->info.frames;
+        memcpy(IR, self->ir->data, m*sizeof(float));
+        memset(IR, 0, (MAX_FFT_SIZE-m)*sizeof(float));
 
         fftwf_execute(self->IRfft);
 
@@ -588,13 +583,11 @@ run(LV2_Handle instance,
 
         ringbuffer_clear(&self->overlap_buffer, self->overlap_add_buffers * MAX_FFT_SIZE);
 
-        for (int i = 0; i < MAX_FFT_SIZE; i++) {
-            self->outbuf[i] = 0.0f;
-            self->inbuf[i] = 0.0f;
-        }
+        memset(self->outbuf, 0, MAX_FFT_SIZE*sizeof(float));
+        memset(self->inbuf, 0, MAX_FFT_SIZE*sizeof(float));
     }
 
-    for ( i = 0; i < n_frames; i++)
+    for (i = 0; i < n_frames; i++)
         inbuf[i] = input[i] * coef * 0.2f;
 
     fftwf_execute(self->fft);
@@ -602,14 +595,11 @@ run(LV2_Handle instance,
     if (self->ir_loaded) {
 
         //complex multiplication
-        for(m = 0; m < MAX_FFT_SIZE/2; m++) {
+        for (m = 0; m < MAX_FFT_SIZE/2; m++) {
             self->convolved[m][REAL] = self->outComplex[m][REAL] * self->IRout[m][REAL] - self->outComplex[m][IMAG] * self->IRout[m][IMAG];
             self->convolved[m][IMAG] = self->outComplex[m][REAL] * self->IRout[m][IMAG] + self->outComplex[m][IMAG] * self->IRout[m][REAL];
         }
-        for(; m < MAX_FFT_SIZE; m++) {
-            self->convolved[m][REAL] = 0.0f;
-            self->convolved[m][IMAG] = 0.0f;
-        }
+        memset(self->convolved, 0, (MAX_FFT_SIZE-m)*sizeof(fftwf_complex));
 
         fftwf_execute(self->ifft);
 
