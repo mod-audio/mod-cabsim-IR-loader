@@ -24,10 +24,10 @@ BASE_OPTS  = -O3 -ffast-math
 
 ifeq ($(MACOS),true)
 # MacOS linker flags
-LINK_OPTS  = -Wl,-dead_strip -Wl,-dead_strip_dylibs -lsndfile -lfftw3 -lfftw3f -lsamplerate
+LINK_OPTS  = -Wl,-dead_strip -Wl,-dead_strip_dylibs
 else
 # Common linker flags
-LINK_OPTS  = -Wl,-O1 -Wl,--as-needed -Wl,--strip-all -lsndfile $(shell pkg-config --libs fftw3f) -lsamplerate
+LINK_OPTS  = -Wl,-O1 -Wl,--as-needed -Wl,--strip-all
 endif
 
 ifneq ($(WIN32),true)
@@ -37,18 +37,20 @@ endif
 
 ifeq ($(DEBUG),true)
 BASE_FLAGS += -DDEBUG -O0 -g
-LINK_OPTS   = -lsndfile -lfftw3 -lfftw3f -lsamplerate
+LINK_OPTS   =
 else
 BASE_FLAGS += -DNDEBUG $(BASE_OPTS) -fvisibility=hidden
 CXXFLAGS   += -fvisibility-inlines-hidden
 endif
+
+LINK_OPTS += $(shell pkg-config --libs sndfile fftw3f samplerate)
 
 BUILD_C_FLAGS   = $(BASE_FLAGS) -std=c99 -std=gnu99 $(CFLAGS)
 BUILD_CXX_FLAGS = $(BASE_FLAGS) -std=c++11 $(CXXFLAGS) $(CPPFLAGS)
 
 ifeq ($(MACOS),true)
 # 'no-undefined' is always enabled on MacOS
-LINK_FLAGS      = $(LINK_OPTS) $(LDFLAGS) -lsndfile -lfftw3 -lfftw3f -lsamplerate
+LINK_FLAGS      = $(LINK_OPTS) $(LDFLAGS)
 else
 # add 'no-undefined'
 LINK_FLAGS      = $(LINK_OPTS) -Wl,--no-undefined $(LDFLAGS) -lsndfile $(shell pkg-config --libs fftw3f) -lsamplerate
