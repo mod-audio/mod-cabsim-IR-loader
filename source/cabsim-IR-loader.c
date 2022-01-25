@@ -121,7 +121,7 @@ typedef struct {
 
     uint32_t prev_buffer_size;
     const float *attenuation;
-    uint32_t current_IR_lenght;
+    uint32_t valid_IR_data_length;
 
     fftwf_complex *outComplex;
     fftwf_complex *IRout;
@@ -548,10 +548,10 @@ run(LV2_Handle instance,
     //copy inputbuffer and IR buffer with zero padding.
     if (self->new_ir)
     {
-        self->current_IR_lenght = MAX_FFT_SIZE < self->ir->info.frames ?
+        self->valid_IR_data_length = MAX_FFT_SIZE < self->ir->info.frames ?
                                   MAX_FFT_SIZE : self->ir->info.frames;
-        memcpy(IR, self->ir->data, self->current_IR_lenght*sizeof(float));
-        memset(IR+self->current_IR_lenght, 0, (MAX_FFT_SIZE-self->current_IR_lenght)*sizeof(float));
+        memcpy(IR, self->ir->data, self->valid_IR_data_length*sizeof(float));
+        memset(IR+self->valid_IR_data_length, 0, (MAX_FFT_SIZE-self->valid_IR_data_length)*sizeof(float));
 
         fftwf_execute(self->IRfft);
 
@@ -578,7 +578,7 @@ run(LV2_Handle instance,
     if (self->ir_loaded) {
 
         //complex multiplication
-        for (m = 0; m < self->current_IR_lenght; m++) {
+        for (m = 0; m < self->valid_IR_data_length; m++) {
             self->convolved[m][REAL] = self->outComplex[m][REAL] * self->IRout[m][REAL] - self->outComplex[m][IMAG] * self->IRout[m][IMAG];
             self->convolved[m][IMAG] = self->outComplex[m][REAL] * self->IRout[m][IMAG] + self->outComplex[m][IMAG] * self->IRout[m][REAL];
         }
