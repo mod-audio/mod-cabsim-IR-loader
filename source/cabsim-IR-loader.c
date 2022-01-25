@@ -388,36 +388,17 @@ instantiate(const LV2_Descriptor*     descriptor,
     self->inbuf = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
     self->IR = (float *) calloc((MAX_FFT_SIZE),sizeof(float));
 
-    const char* wisdomFile = "cabsim.wisdom";
-
-    //open file A
-    const size_t path_len    = strlen(path);
-    const size_t file_len    = strlen(wisdomFile);
-
-    const size_t len         = path_len + file_len;
-    char*        wisdom_path = (char*)malloc(len + 1);
-    snprintf(wisdom_path, len + 1, "%s%s", path, wisdomFile);
-
-    lv2_log_note(&self->logger,"wisdom path = %s\n", wisdom_path);
-
     if (fftwf_import_system_wisdom() != 0)
     {
         self->fft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->inbuf, self->outComplex, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
         self->IRfft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->IR, self->IRout, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
         self->ifft = fftwf_plan_dft_c2r_1d(MAX_FFT_SIZE, self->convolved, self->outbuf, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
-        lv2_log_note(&self->logger, "Wisdom file loaded from system\n");
-    }
-    else if (fftwf_import_wisdom_from_filename(wisdom_path) != 0)
-    {
-        self->fft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->inbuf, self->outComplex, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
-        self->IRfft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->IR, self->IRout, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
-        self->ifft = fftwf_plan_dft_c2r_1d(MAX_FFT_SIZE, self->convolved, self->outbuf, FFTW_WISDOM_ONLY|FFTW_ESTIMATE);
-        lv2_log_note(&self->logger, "Wisdom file loaded from plugin\n");
+        lv2_log_note(&self->logger, "wisdom file loaded from system\n");
     } else {
         self->fft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->inbuf, self->outComplex, FFTW_ESTIMATE);
         self->IRfft = fftwf_plan_dft_r2c_1d(MAX_FFT_SIZE, self->IR, self->IRout, FFTW_ESTIMATE);
         self->ifft = fftwf_plan_dft_c2r_1d(MAX_FFT_SIZE, self->convolved, self->outbuf, FFTW_ESTIMATE);
-        lv2_log_warning(&self->logger, "failed to import system or plugin wisdom file '%s', using estimate instead\n", wisdom_path);
+        lv2_log_warning(&self->logger, "failed to import system wisdom file\n");
     }
 
     self->new_ir = false;
