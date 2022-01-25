@@ -549,7 +549,7 @@ run(LV2_Handle instance,
     {
         m = MAX_FFT_SIZE/2 < self->ir->info.frames ? MAX_FFT_SIZE/2 : self->ir->info.frames;
         memcpy(IR, self->ir->data, m*sizeof(float));
-        memset(IR, 0, (MAX_FFT_SIZE-m)*sizeof(float));
+        memset(IR+m, 0, (MAX_FFT_SIZE-m)*sizeof(float));
 
         fftwf_execute(self->IRfft);
 
@@ -580,7 +580,7 @@ run(LV2_Handle instance,
             self->convolved[m][REAL] = self->outComplex[m][REAL] * self->IRout[m][REAL] - self->outComplex[m][IMAG] * self->IRout[m][IMAG];
             self->convolved[m][IMAG] = self->outComplex[m][REAL] * self->IRout[m][IMAG] + self->outComplex[m][IMAG] * self->IRout[m][REAL];
         }
-        memset(self->convolved, 0, (MAX_FFT_SIZE-m)*sizeof(fftwf_complex));
+        memset(self->convolved+m, 0, (MAX_FFT_SIZE-m)*sizeof(fftwf_complex));
 
         fftwf_execute(self->ifft);
 
