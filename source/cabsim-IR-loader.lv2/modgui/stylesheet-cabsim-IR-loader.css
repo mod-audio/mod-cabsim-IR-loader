@@ -6,6 +6,11 @@
     height: 585px;
 }
 
+.mod-cabinet{{{cns}}} .mod-drag-handle {
+    width: 374px;
+    height: 374px;
+}
+
 /* CABINET FACE */
 .mod-cabinet{{{cns}}} .mod-cabinet-face {
     background-position: center center;
