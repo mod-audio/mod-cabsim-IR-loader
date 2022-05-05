@@ -1,8 +1,0 @@
-{
-    "buildroot_pkg": "mod-cabsim-IR-loader",
-    "bundles": [
-        { "name": "cabsim-IR-loader.lv2", "image_required": "1.10.0", "stable": false }
-    ],
-    "developer": "MOD",
-    "project": "mod-cabsim-IR-loader"
-}
