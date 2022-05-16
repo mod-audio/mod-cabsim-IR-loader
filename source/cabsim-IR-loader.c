@@ -548,10 +548,10 @@ run(LV2_Handle instance,
     //copy inputbuffer and IR buffer with zero padding.
     if (self->new_ir)
     {
-        self->valid_IR_data_length = MAX_FFT_SIZE < self->ir->info.frames ?
-                                  MAX_FFT_SIZE : self->ir->info.frames;
+        self->valid_IR_data_length = (MAX_FFT_SIZE - n_frames) < self->ir->info.frames ?
+                                  (MAX_FFT_SIZE - n_frames) : self->ir->info.frames;
         memcpy(IR, self->ir->data, self->valid_IR_data_length*sizeof(float));
-        memset(IR+self->valid_IR_data_length, 0, (MAX_FFT_SIZE-self->valid_IR_data_length)*sizeof(float));
+        memset(IR+self->valid_IR_data_length, 0, (MAX_FFT_SIZE - self->valid_IR_data_length)*sizeof(float));
 
         fftwf_execute(self->IRfft);
 
