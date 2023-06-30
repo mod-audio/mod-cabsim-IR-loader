@@ -21,13 +21,16 @@ endif
 
 BASE_FLAGS = -Wall -Wextra -pipe -Wno-unused-parameter
 BASE_OPTS  = -O3 -ffast-math
+BASE_OPTS += -flto -ffat-lto-objects
+BASE_OPTS += -fdata-sections -ffunction-sections
 
 ifeq ($(MACOS),true)
 # MacOS linker flags
-LINK_OPTS  = -Wl,-dead_strip -Wl,-dead_strip_dylibs
+LINK_OPTS  = -Wl,-dead_strip,-dead_strip_dylibs
 else
 # Common linker flags
-LINK_OPTS  = -Wl,-O1 -Wl,--as-needed -Wl,--strip-all
+LINK_OPTS  = -Wl,-O1,--as-needed,--strip-all
+LINK_OPTS  = -Wl,--gc-sections
 endif
 
 ifneq ($(WIN32),true)

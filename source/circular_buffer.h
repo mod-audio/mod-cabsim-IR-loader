@@ -6,8 +6,8 @@
 #define MAX_BUFFER_SIZE 65536
 
 typedef struct RINGBUFFER_T {
-	uint32_t S;
 	float m_buffer[MAX_BUFFER_SIZE];
+	uint32_t S;
 	uint32_t m_size;
 	uint32_t m_front;
 	uint32_t m_back;
